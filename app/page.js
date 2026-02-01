@@ -8,8 +8,7 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const [isFixed, setIsFixed] = useState(false);
 
-  // --- HELPER: PURE CLEANING LOGIC ---
-  // We extract this so it can be used by both onBlur and handleSubmit
+  // --- LOGIC: URL CLEANER ---
   function getCleanedUrl(raw) {
     if (!raw) return "";
 
@@ -20,10 +19,12 @@ export default function Home() {
       let trimmed = line.trim();
       if (!trimmed) return;
 
+      // Remove "URL:" prefix if present (common in copy-pastes)
       trimmed = trimmed.replace(/^URL:\s*/i, '');
 
       const firstChar = trimmed.charAt(0);
       
+      // Detect fragments that should be merged with the previous line
       const isFragment = ['/', '?', '&', '=', '#', '_', '%'].includes(firstChar) || 
                          trimmed.toLowerCase().startsWith('utm') ||
                          trimmed.toLowerCase().startsWith('gad') ||
@@ -35,24 +36,50 @@ export default function Home() {
       const hasDot = trimmed.includes('.');
 
       if (isFragment && validUrlLines.length > 0) {
+        // Merge with previous line
         validUrlLines[validUrlLines.length - 1] += trimmed;
       } else if (!hasSpaces && hasDot) {
+        // Treat as new URL line
         validUrlLines.push(trimmed);
       }
     });
 
     const polishedUrls = validUrlLines.map(u => {
-      let clean = u.replace(/[#•*]+$/, '');
+      let clean = u.replace(/[#•*]+$/, ''); // Remove trailing garbage
       if (!/^https?:\/\//i.test(clean)) {
-        clean = 'https://' + clean;
+        clean = 'https://' + clean; // Ensure protocol
       }
       return clean;
     });
 
+    // Return joined URLs (or empty string if none valid)
     return polishedUrls.join('\n');
   }
 
-  // --- HANDLER: VISUAL FIX ON BLUR ---
+  // --- HANDLER: ON PASTE (Immediate Fix) ---
+  const handlePaste = (e) => {
+    // Prevent default paste to handle it manually
+    e.preventDefault();
+    
+    // Get text from clipboard
+    const pastedData = e.clipboardData.getData("text");
+    
+    // Clean it immediately
+    const cleaned = getCleanedUrl(pastedData);
+    
+    // Update state
+    // Note: If you want to append to existing text instead of replace, 
+    // you would combine 'url' + 'cleaned'. For this app, replacing is usually safer.
+    setUrl(cleaned || pastedData); 
+    
+    // Trigger visual feedback
+    if (cleaned !== pastedData) {
+      setIsFixed(true);
+      setTimeout(() => setIsFixed(false), 500);
+    }
+  };
+
+  // --- HANDLER: ON BLUR (Backup Fix) ---
   function handleBlur() {
     const cleaned = getCleanedUrl(url);
     if (cleaned && cleaned !== url) {
@@ -66,29 +93,24 @@ export default function Home() {
   async function handleSubmit(e) {
     e.preventDefault();
     
-    // 1. Force clean immediately (in case user didn't blur/click away)
+    // Final safety clean before sending
     const cleanedUrl = getCleanedUrl(url);
-    
-    // 2. Update UI if it changed
-    if (cleanedUrl !== url) {
+    if (cleanedUrl && cleanedUrl !== url) {
         setUrl(cleanedUrl);
-        setIsFixed(true);
-        setTimeout(() => setIsFixed(false), 500);
+    }
+
+    // Use the cleaned version for the API
+    // (If the cleaner returned empty string because input was total garbage, fallback to raw url to let API handle error)
+    const targetUrl = (cleanedUrl || url).split('\n')[0].trim();
+
+    if (!targetUrl) {
+        alert("Please enter a valid URL");
+        return;
     }
 
     setLoading(true);
     setResult(null);
     setCopied(false);
-
-    // 3. Use the CLEANED url for the API request
-    // We split by newline to get the first valid URL if there are multiple
-    const targetUrl = cleanedUrl.split('\n')[0].trim();
-
-    if (!targetUrl) {
-        setLoading(false);
-        alert("Please enter a valid URL");
-        return;
-    }
 
     try {
         const res = await fetch("/api/reader", {
@@ -101,7 +123,7 @@ export default function Home() {
         setResult(data);
     } catch (err) {
         console.error(err);
-        alert("An error occurred while fetching the URL.");
+        alert("An error occurred.");
     } finally {
         setLoading(false);
     }
@@ -120,10 +142,11 @@ export default function Home() {
 
       <form onSubmit={handleSubmit} style={{ marginBottom: "20px" }}>
         <textarea
-          placeholder="Paste URL here..."
+          placeholder="Paste URL here (smart fix enabled)..."
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          onBlur={handleBlur} // Visual fix when clicking away
+          onPaste={handlePaste} // <--- INTERCEPTS PASTE
+          onBlur={handleBlur}   // <--- CATCHES MANUAL TYPING
           required
           rows={4}
           style={{
@@ -134,8 +157,10 @@ export default function Home() {
             borderRadius: 4,
             resize: "vertical",
             fontFamily: "monospace",
-            transition: "background-color 0.3s ease",
-            backgroundColor: isFixed ? "#e6ffe6" : "white"
+            transition: "all 0.3s ease",
+            // Flash green when fixed, regular white otherwise
+            backgroundColor: isFixed ? "#d4edda" : "#fff",
+            borderColor: isFixed ? "#28a745" : "#ccc"
           }}
         />
         <button
