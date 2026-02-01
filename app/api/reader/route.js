@@ -177,7 +177,8 @@ export async function POST(request) {
     }
 
     // 5. Format Output
-    const finalOutput = `**URL:** [${url}](${url})\n**Provider:** ${provider.toUpperCase()}\n\n${aiSummary}`;
+    // Removed the "Provider" line as requested
+    const finalOutput = `**URL:** [${url}](${url})\n\n${aiSummary}`;
 
     return NextResponse.json({
       summary: finalOutput,
