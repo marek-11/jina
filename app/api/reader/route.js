@@ -14,14 +14,14 @@ export async function POST(request) {
       },
       body: JSON.stringify({
         url,
-        format: "text",
+        format: "text", // <-- returns plain text, NOT JSON
         fetch: { timeout: 15000 }
       })
     });
 
-    const data = await jinaRes.json();
+    const text = await jinaRes.text(); // <-- Must read as text
 
-    return Response.json(data);
+    return Response.json({ content: text });
   } catch (err) {
     return Response.json(
       { error: "Failed to fetch from Jina Reader", details: err.message },
