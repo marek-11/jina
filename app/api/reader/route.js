@@ -5,12 +5,10 @@ function cleanUrl(raw) {
   if (!raw) return "";
   let trimmed = raw.replace(/^URL:\s*/i, '').trim();
   
-  // Aggressive space removal for http/https lines
   if (/^https?:\/\//i.test(trimmed)) {
     trimmed = trimmed.replace(/\s+/g, '');
   }
   
-  // Ensure protocol
   if (!/^https?:\/\//i.test(trimmed)) {
     trimmed = 'https://' + trimmed;
   }
@@ -25,7 +23,7 @@ export async function POST(request) {
     return NextResponse.json({ error: "URL is required" }, { status: 400 });
   }
 
-  // 1. Get the "Corrected and Exact" URL
+  // 1. Clean URL
   url = cleanUrl(url);
 
   try {
@@ -47,7 +45,8 @@ export async function POST(request) {
       ? markdown.substring(0, 30000) + "\n...(content truncated)" 
       : markdown;
 
-    // 3. Fetch Summary from Groq (Brief Paragraph)
+    // 3. Call Groq for Summarization
+    // SWITCHED MODEL: 'llama-3.3-70b-versatile' is more reliable for pure text summarization
     const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -55,11 +54,11 @@ export async function POST(request) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "openai/gpt-oss-20b", 
+        model: "llama-3.3-70b-versatile", 
         messages: [
           {
             role: "system",
-            content: "You are a helpful assistant. Summarize the provided content in a single, brief, and concise paragraph. Do not use bullet points, lists, or section headers. Focus on the core message and key details. ALWAYS return the summary in English."
+            content: "You are a helpful assistant. Summarize the provided text in a single, brief, and concise paragraph. Base your summary STRICTLY on the provided content below. Do not add outside knowledge. ALWAYS return the summary in English."
           },
           {
             role: "user",
@@ -81,10 +80,11 @@ export async function POST(request) {
       });
     }
 
-    const aiSummary = groqData.choices?.[0]?.message?.content || "No summary generated.";
+    // DEBUG LOGIC: If content is null (common with tool-use models), dump the whole response so we see why.
+    const aiSummary = groqData.choices?.[0]?.message?.content 
+        || `⚠️ No summary generated. Debug info: ${JSON.stringify(groqData.choices?.[0] || groqData)}`;
 
-    // 4. Prepend the URL to the final output
-    // This ensures it is always at the top, formatted nicely
+    // 4. Format Output
     const finalOutput = `**URL:** ${url}\n\n${aiSummary}`;
 
     return NextResponse.json({
