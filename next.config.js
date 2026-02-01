@@ -1,7 +1,4 @@
-{
-type: "file_change",
-fileName: "jina-main (1)/jina-main/next.config.js",
-oldContent: `/** @type {import('next').NextConfig} */
+/** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
   experimental: {
@@ -9,11 +6,4 @@ const nextConfig = {
   }
 };
 
-module.exports = nextConfig;`,
-newContent: `/** @type {import('next').NextConfig} */
-const nextConfig = {
-  output: "standalone",
-};
-
-module.exports = nextConfig;`
-}
+module.exports = nextConfig;
