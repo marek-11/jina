@@ -6,62 +6,25 @@ export async function POST(request) {
   }
 
   try {
-    //
-    // 1️⃣ Extract text from URL using Jina Reader
-    //
-    const readerRes = await fetch("https://r.jina.ai/", {
-      method: "POST",
+    // Fast mode — single request only
+    const res = await fetch(`https://r.jina.ai/${url}`, {
+      method: "GET",
       headers: {
-        "Content-Type": "application/json",
         "Authorization": `Bearer ${process.env.JINA_API_KEY}`
-      },
-      body: JSON.stringify({
-        url,
-        format: "text",
-        fetch: { timeout: 15000 }
-      })
+      }
     });
 
-    const extractedText = await readerRes.text();
+    const markdown = await res.text();
 
-    //
-    // 2️⃣ Summarize extracted text using Jina LLM — BRIEF VERSION
-    //
-    const summaryRes = await fetch("https://api.jina.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.JINA_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: "jina-llm-chat",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a professional summarizer. ALWAYS reply in English. Produce a *very brief* summary: no more than 1–2 short sentences. Be concise, clear, and direct."
-          },
-          {
-            role: "user",
-            content: extractedText.slice(0, 15000)
-          }
-        ],
-        max_tokens: 120,
-        temperature: 0.2
-      })
-    });
+    // Extract Jina's built-in summary
+    // Summary appears at the top in blockquote format
+    const lines = markdown.split("\n");
+    const summaryLines = lines.filter(line => line.startsWith(">"));
+    const summary = summaryLines.join(" ").replace(/^>+/g, "").trim();
 
-    const summaryJson = await summaryRes.json();
-    const summary =
-      summaryJson?.choices?.[0]?.message?.content ||
-      "No summary produced.";
-
-    //
-    // 3️⃣ Return both summary + extracted text
-    //
     return Response.json({
-      summary,
-      content: extractedText
+      summary: summary || "No summary found.",
+      content: markdown
     });
 
   } catch (err) {
