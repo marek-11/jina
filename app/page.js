@@ -164,7 +164,7 @@ export default function Home() {
 
   return (
     <main style={{ maxWidth: 700, margin: "40px auto", fontFamily: "sans-serif" }}>
-      <h1>Jina Reader – URL Summary</h1>
+      <h1>WebCrawler</h1>
 
       <form onSubmit={handleSubmit} style={{ marginBottom: "20px" }}>
         
