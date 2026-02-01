@@ -1,5 +1,16 @@
 import { NextResponse } from "next/server";
 
+// --- HELPER: KEY ROTATION ---
+function getRotatingKey(envVarName) {
+  const envVar = process.env[envVarName];
+  if (!envVar) return null;
+  // Split by comma, trim whitespace, and filter out empty strings
+  const keys = envVar.split(',').map(k => k.trim()).filter(k => k);
+  if (keys.length === 0) return null;
+  // Return a random key from the list
+  return keys[Math.floor(Math.random() * keys.length)];
+}
+
 // --- HELPER: URL CLEANING LOGIC ---
 function cleanUrl(raw) {
   if (!raw) return "";
@@ -23,15 +34,26 @@ export async function POST(request) {
     return NextResponse.json({ error: "URL is required" }, { status: 400 });
   }
 
-  // 1. Clean URL
+  // 1. Get Rotating Keys
+  const jinaKey = getRotatingKey('JINA_API_KEY');
+  const groqKey = getRotatingKey('GROQ_API_KEY');
+
+  if (!jinaKey) {
+    return NextResponse.json({ error: "Server configuration error: Missing JINA_API_KEY" }, { status: 500 });
+  }
+  if (!groqKey) {
+    return NextResponse.json({ error: "Server configuration error: Missing GROQ_API_KEY" }, { status: 500 });
+  }
+
+  // 2. Clean URL
   url = cleanUrl(url);
 
   try {
-    // 2. Fetch content from Jina
+    // 3. Fetch content from Jina
     const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
       method: "GET",
       headers: {
-        "Authorization": `Bearer ${process.env.JINA_API_KEY}`,
+        "Authorization": `Bearer ${jinaKey}`, // Uses the rotated key
         "X-With-Links-Summary": "true" 
       }
     });
@@ -45,12 +67,11 @@ export async function POST(request) {
       ? markdown.substring(0, 30000) + "\n...(content truncated)" 
       : markdown;
 
-    // 3. Call Groq for Summarization
-    // SWITCHED MODEL: 'llama-3.3-70b-versatile' is more reliable for pure text summarization
+    // 4. Call Groq for Summarization
     const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+        "Authorization": `Bearer ${groqKey}`, // Uses the rotated key
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
@@ -80,11 +101,10 @@ export async function POST(request) {
       });
     }
 
-    // DEBUG LOGIC: If content is null (common with tool-use models), dump the whole response so we see why.
     const aiSummary = groqData.choices?.[0]?.message?.content 
         || `⚠️ No summary generated. Debug info: ${JSON.stringify(groqData.choices?.[0] || groqData)}`;
 
-    // 4. Format Output
+    // 5. Format Output
     const finalOutput = `**URL:** ${url}\n\n${aiSummary}`;
 
     return NextResponse.json({
