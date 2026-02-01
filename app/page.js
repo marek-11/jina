@@ -5,11 +5,13 @@ export default function Home() {
   const [url, setUrl] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setLoading(true);
     setResult(null);
+    setCopied(false);
 
     const res = await fetch("/api/reader", {
       method: "POST",
@@ -20,6 +22,12 @@ export default function Home() {
     const data = await res.json();
     setResult(data);
     setLoading(false);
+  }
+
+  function copySummary() {
+    navigator.clipboard.writeText(result.summary);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   }
 
   return (
@@ -60,7 +68,28 @@ export default function Home() {
 
       {result && (
         <div>
-          <h2>Summary</h2>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h2>Summary (English)</h2>
+
+            <button
+              onClick={copySummary}
+              style={{
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                fontSize: 18,
+                padding: "6px 10px"
+              }}
+              title="Copy summary"
+            >
+              📋
+            </button>
+          </div>
+
+          {copied && (
+            <div style={{ color: "green", marginBottom: 10 }}>Copied!</div>
+          )}
+
           <p
             style={{
               background: "#eef2ff",
