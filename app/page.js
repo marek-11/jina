@@ -8,7 +8,7 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const [isFixed, setIsFixed] = useState(false);
 
-  // --- LOGIC: URL CLEANER ---
+  // --- LOGIC: URL CLEANER (Enhanced) ---
   function getCleanedUrl(raw) {
     if (!raw) return "";
 
@@ -19,20 +19,34 @@ export default function Home() {
       let trimmed = line.trim();
       if (!trimmed) return;
 
-      // Remove "URL:" prefix if present (common in copy-pastes)
+      // 1. Remove "URL:" prefix (common in emails/chat)
       trimmed = trimmed.replace(/^URL:\s*/i, '');
 
+      // 2. AGGRESSIVE FIX: If line starts with http/https, remove ALL spaces immediately.
+      // This fixes: "https://site.com/ en/ page" -> "https://site.com/en/page"
+      if (/^https?:\/\//i.test(trimmed)) {
+         trimmed = trimmed.replace(/\s+/g, '');
+      }
+
+      // 3. Fragment Detection
       const firstChar = trimmed.charAt(0);
+      const isFragmentStart = ['/', '?', '&', '=', '#', '_', '%'].includes(firstChar);
       
-      // Detect fragments that should be merged with the previous line
-      const isFragment = ['/', '?', '&', '=', '#', '_', '%'].includes(firstChar) || 
+      // If it looks like a fragment, we also strip spaces (e.g. "? q = 1" -> "?q=1")
+      if (isFragmentStart) {
+         trimmed = trimmed.replace(/\s+/g, '');
+      }
+
+      const isFragment = isFragmentStart || 
                          trimmed.toLowerCase().startsWith('utm') ||
                          trimmed.toLowerCase().startsWith('gad') ||
                          trimmed.toLowerCase().startsWith('gclid') ||
                          trimmed.toLowerCase().startsWith('wbraid') ||
                          trimmed.includes('=');
 
-      const hasSpaces = /\s/.test(trimmed);
+      // Check for validity
+      // If we stripped spaces, 'hasSpaces' is now false, so valid URL check passes easier
+      const hasSpaces = /\s/.test(trimmed); 
       const hasDot = trimmed.includes('.');
 
       if (isFragment && validUrlLines.length > 0) {
@@ -52,34 +66,26 @@ export default function Home() {
       return clean;
     });
 
-    // Return joined URLs (or empty string if none valid)
     return polishedUrls.join('\n');
   }
 
   // --- HANDLER: ON PASTE (Immediate Fix) ---
   const handlePaste = (e) => {
-    // Prevent default paste to handle it manually
     e.preventDefault();
-    
-    // Get text from clipboard
     const pastedData = e.clipboardData.getData("text");
-    
-    // Clean it immediately
     const cleaned = getCleanedUrl(pastedData);
     
-    // Update state
-    // Note: If you want to append to existing text instead of replace, 
-    // you would combine 'url' + 'cleaned'. For this app, replacing is usually safer.
+    // Replace content with cleaned version
     setUrl(cleaned || pastedData); 
     
-    // Trigger visual feedback
+    // Visual feedback
     if (cleaned !== pastedData) {
       setIsFixed(true);
       setTimeout(() => setIsFixed(false), 500);
     }
   };
 
-  // --- HANDLER: ON BLUR (Backup Fix) ---
+  // --- HANDLER: ON BLUR (Manual Fix) ---
   function handleBlur() {
     const cleaned = getCleanedUrl(url);
     if (cleaned && cleaned !== url) {
@@ -93,14 +99,11 @@ export default function Home() {
   async function handleSubmit(e) {
     e.preventDefault();
     
-    // Final safety clean before sending
     const cleanedUrl = getCleanedUrl(url);
     if (cleanedUrl && cleanedUrl !== url) {
         setUrl(cleanedUrl);
     }
 
-    // Use the cleaned version for the API
-    // (If the cleaner returned empty string because input was total garbage, fallback to raw url to let API handle error)
     const targetUrl = (cleanedUrl || url).split('\n')[0].trim();
 
     if (!targetUrl) {
@@ -142,11 +145,11 @@ export default function Home() {
 
       <form onSubmit={handleSubmit} style={{ marginBottom: "20px" }}>
         <textarea
-          placeholder="Paste URL here (smart fix enabled)..."
+          placeholder="Paste URL here..."
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          onPaste={handlePaste} // <--- INTERCEPTS PASTE
-          onBlur={handleBlur}   // <--- CATCHES MANUAL TYPING
+          onPaste={handlePaste}
+          onBlur={handleBlur}
           required
           rows={4}
           style={{
@@ -158,8 +161,7 @@ export default function Home() {
             resize: "vertical",
             fontFamily: "monospace",
             transition: "all 0.3s ease",
-            // Flash green when fixed, regular white otherwise
-            backgroundColor: isFixed ? "#d4edda" : "#fff",
+            backgroundColor: isFixed ? "#d4edda" : "#fff", // Light green flash
             borderColor: isFixed ? "#28a745" : "#ccc"
           }}
         />
