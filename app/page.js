@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react"; // <--- Added useEffect
+import { useState, useEffect } from "react"; 
 import ReactMarkdown from "react-markdown";
 
 export default function Home() {
@@ -15,7 +15,6 @@ export default function Home() {
       // Check if "d" or "D" was pressed
       if (e.key === "d" || e.key === "D") {
         // IGNORE if the user is currently typing inside the textarea or an input
-        // (Otherwise they can't type URLs containing the letter 'd')
         const activeTag = document.activeElement.tagName.toLowerCase();
         if (activeTag === "textarea" || activeTag === "input") {
           return;
@@ -23,9 +22,7 @@ export default function Home() {
 
         // If not typing, perform the clear action
         setUrl("");
-        setResult(null); // Optional: Clear the result too if you want a full reset
-        // setIsFixed(true); // Optional: Trigger flash to show something happened
-        // setTimeout(() => setIsFixed(false), 200);
+        setResult(null); 
       }
     }
 
@@ -99,6 +96,22 @@ export default function Home() {
     }
   };
 
+  // --- NEW: Handle Paste Button Click ---
+  const handlePasteClick = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        const cleaned = getCleanedUrl(text);
+        setUrl(cleaned || text);
+        setIsFixed(true);
+        setTimeout(() => setIsFixed(false), 500);
+      }
+    } catch (err) {
+      console.error("Failed to read clipboard:", err);
+      alert("Please allow clipboard permissions or paste manually.");
+    }
+  };
+
   function handleBlur() {
     const cleaned = getCleanedUrl(url);
     if (cleaned && cleaned !== url) {
@@ -154,28 +167,59 @@ export default function Home() {
       <h1>Jina Reader – URL Summary</h1>
 
       <form onSubmit={handleSubmit} style={{ marginBottom: "20px" }}>
-        <textarea
-          id="urlInput"
-          placeholder="Paste URL here..."
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          onPaste={handlePaste}
-          onBlur={handleBlur}
-          required
-          rows={4}
-          style={{
-            padding: 10,
-            width: "100%",
-            marginBottom: 10,
-            border: "1px solid #ccc",
-            borderRadius: 4,
-            resize: "vertical",
-            fontFamily: "monospace",
-            transition: "all 0.3s ease",
-            backgroundColor: isFixed ? "#d4edda" : "#fff",
-            borderColor: isFixed ? "#28a745" : "#ccc"
-          }}
-        />
+        
+        {/* WRAPPER DIV for Relative Positioning */}
+        <div style={{ position: "relative", width: "100%", marginBottom: 10 }}>
+          <textarea
+            id="urlInput"
+            placeholder="Paste URL here..."
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onPaste={handlePaste}
+            onBlur={handleBlur}
+            required
+            rows={4}
+            style={{
+              padding: 10,
+              paddingRight: 40, // Add padding on right so text doesn't go under the button
+              width: "100%",
+              border: "1px solid #ccc",
+              borderRadius: 4,
+              resize: "vertical",
+              fontFamily: "monospace",
+              transition: "all 0.3s ease",
+              backgroundColor: isFixed ? "#d4edda" : "#fff",
+              borderColor: isFixed ? "#28a745" : "#ccc",
+              display: "block" // Removes inline-block gaps
+            }}
+          />
+          
+          {/* PASTE BUTTON ICON */}
+          <button
+            type="button"
+            onClick={handlePasteClick}
+            title="Paste from Clipboard"
+            style={{
+              position: "absolute",
+              right: 8,
+              top: 8,
+              background: "#f0f0f0",
+              border: "1px solid #ccc",
+              borderRadius: "4px",
+              cursor: "pointer",
+              padding: "5px 8px",
+              fontSize: "16px",
+              lineHeight: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 10
+            }}
+          >
+            📋
+          </button>
+        </div>
+
         <div style={{display:'flex', gap: '10px'}}>
             <button
             type="submit"
@@ -193,7 +237,6 @@ export default function Home() {
             {loading ? "Processing..." : "Read & Summarize"}
             </button>
             
-            {/* Optional: Visual "Clear" button that does the same thing */}
             <button
                 type="button"
                 onClick={() => { setUrl(""); setResult(null); }}
