@@ -91,14 +91,14 @@ export async function POST(request) {
 
     for (const key of groqKeys) {
       try {
-        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        const groqRes = await fetch("https://marqos.zeabur.app/v1/chat/completions", {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${key}`,
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: "llama-3.3-70b-versatile", 
+            model: "gpt-5-nano", 
             messages: [
               {
                 role: "system",
