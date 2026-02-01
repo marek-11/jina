@@ -25,7 +25,7 @@ export async function POST(request) {
     const extractedText = await readerRes.text();
 
     //
-    // 2️⃣ Summarize extracted text using Jina LLM
+    // 2️⃣ Summarize extracted text using Jina LLM — BRIEF VERSION
     //
     const summaryRes = await fetch("https://api.jina.ai/v1/chat/completions", {
       method: "POST",
@@ -39,15 +39,15 @@ export async function POST(request) {
           {
             role: "system",
             content:
-              "You are a professional summarizer. ALWAYS summarize in English. Produce a clean, brief, easy-to-read paragraph summary."
+              "You are a professional summarizer. ALWAYS reply in English. Produce a *very brief* summary: no more than 1–2 short sentences. Be concise, clear, and direct."
           },
           {
             role: "user",
-            content: extractedText.slice(0, 15000) // protect token limits
+            content: extractedText.slice(0, 15000)
           }
         ],
-        max_tokens: 250,
-        temperature: 0.3
+        max_tokens: 120,
+        temperature: 0.2
       })
     });
 
@@ -57,7 +57,7 @@ export async function POST(request) {
       "No summary produced.";
 
     //
-    // 3️⃣ Return both summary + full extracted content
+    // 3️⃣ Return both summary + extracted text
     //
     return Response.json({
       summary,
