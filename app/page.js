@@ -6,85 +6,109 @@ export default function Home() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [isFixed, setIsFixed] = useState(false); // State to trigger the visual flash effect
+  const [isFixed, setIsFixed] = useState(false);
 
-  // --- SMART EXTRACT LOGIC ADAPTED FOR REACT ---
-  function extractAndCleanUrls() {
-    const raw = url;
-    if (!raw) return;
+  // --- HELPER: PURE CLEANING LOGIC ---
+  // We extract this so it can be used by both onBlur and handleSubmit
+  function getCleanedUrl(raw) {
+    if (!raw) return "";
 
     const rawLines = raw.split('\n');
     const validUrlLines = [];
 
     rawLines.forEach(line => {
-        let trimmed = line.trim();
-        if (!trimmed) return;
+      let trimmed = line.trim();
+      if (!trimmed) return;
 
-        // Remove "URL:" prefix if present
-        trimmed = trimmed.replace(/^URL:\s*/i, '');
+      trimmed = trimmed.replace(/^URL:\s*/i, '');
 
-        const firstChar = trimmed.charAt(0);
-        
-        // Detect if this line is actually a fragment of the previous URL
-        const isFragment = ['/', '?', '&', '=', '#', '_', '%'].includes(firstChar) || 
-                           trimmed.toLowerCase().startsWith('utm') ||
-                           trimmed.toLowerCase().startsWith('gad') ||
-                           trimmed.toLowerCase().startsWith('gclid') ||
-                           trimmed.toLowerCase().startsWith('wbraid') ||
-                           trimmed.includes('=');
+      const firstChar = trimmed.charAt(0);
+      
+      const isFragment = ['/', '?', '&', '=', '#', '_', '%'].includes(firstChar) || 
+                         trimmed.toLowerCase().startsWith('utm') ||
+                         trimmed.toLowerCase().startsWith('gad') ||
+                         trimmed.toLowerCase().startsWith('gclid') ||
+                         trimmed.toLowerCase().startsWith('wbraid') ||
+                         trimmed.includes('=');
 
-        const hasSpaces = /\s/.test(trimmed);
-        const hasDot = trimmed.includes('.');
+      const hasSpaces = /\s/.test(trimmed);
+      const hasDot = trimmed.includes('.');
 
-        if (isFragment && validUrlLines.length > 0) {
-            // Merge with previous line
-            validUrlLines[validUrlLines.length - 1] += trimmed;
-        } else if (!hasSpaces && hasDot) {
-            // Treat as new URL
-            validUrlLines.push(trimmed);
-        }
+      if (isFragment && validUrlLines.length > 0) {
+        validUrlLines[validUrlLines.length - 1] += trimmed;
+      } else if (!hasSpaces && hasDot) {
+        validUrlLines.push(trimmed);
+      }
     });
 
     const polishedUrls = validUrlLines.map(u => {
-        let clean = u.replace(/[#•*]+$/, ''); // Remove trailing garbage
-        if (!/^https?:\/\//i.test(clean)) {
-            clean = 'https://' + clean; // Ensure protocol
-        }
-        return clean;
+      let clean = u.replace(/[#•*]+$/, '');
+      if (!/^https?:\/\//i.test(clean)) {
+        clean = 'https://' + clean;
+      }
+      return clean;
     });
 
-    const newValue = polishedUrls.join('\n');
+    return polishedUrls.join('\n');
+  }
 
-    // Only update if changes were made
-    if (raw !== newValue) {
-        setUrl(newValue);
-        setIsFixed(true);
-        setTimeout(() => setIsFixed(false), 500); // Remove flash effect after 500ms
+  // --- HANDLER: VISUAL FIX ON BLUR ---
+  function handleBlur() {
+    const cleaned = getCleanedUrl(url);
+    if (cleaned && cleaned !== url) {
+      setUrl(cleaned);
+      setIsFixed(true);
+      setTimeout(() => setIsFixed(false), 500);
     }
   }
 
+  // --- HANDLER: SUBMIT ---
   async function handleSubmit(e) {
     e.preventDefault();
+    
+    // 1. Force clean immediately (in case user didn't blur/click away)
+    const cleanedUrl = getCleanedUrl(url);
+    
+    // 2. Update UI if it changed
+    if (cleanedUrl !== url) {
+        setUrl(cleanedUrl);
+        setIsFixed(true);
+        setTimeout(() => setIsFixed(false), 500);
+    }
+
     setLoading(true);
     setResult(null);
     setCopied(false);
 
-    // If multiple URLs are present after cleaning, we take the first one for the API
-    // (Since the current backend only handles one URL at a time)
-    const targetUrl = url.split('\n')[0].trim();
+    // 3. Use the CLEANED url for the API request
+    // We split by newline to get the first valid URL if there are multiple
+    const targetUrl = cleanedUrl.split('\n')[0].trim();
 
-    const res = await fetch("/api/reader", {
-      method: "POST",
-      body: JSON.stringify({ url: targetUrl }),
-      headers: { "Content-Type": "application/json" }
-    });
+    if (!targetUrl) {
+        setLoading(false);
+        alert("Please enter a valid URL");
+        return;
+    }
 
-    const data = await res.json();
-    setResult(data);
-    setLoading(false);
+    try {
+        const res = await fetch("/api/reader", {
+            method: "POST",
+            body: JSON.stringify({ url: targetUrl }),
+            headers: { "Content-Type": "application/json" }
+        });
+
+        const data = await res.json();
+        setResult(data);
+    } catch (err) {
+        console.error(err);
+        alert("An error occurred while fetching the URL.");
+    } finally {
+        setLoading(false);
+    }
   }
 
   function copySummary() {
+    if (!result?.summary) return;
     navigator.clipboard.writeText(result.summary);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
@@ -95,12 +119,11 @@ export default function Home() {
       <h1>Jina Reader – URL Summary</h1>
 
       <form onSubmit={handleSubmit} style={{ marginBottom: "20px" }}>
-        {/* Changed from input to textarea to allow pasting messy multi-line content */}
         <textarea
-          placeholder="Paste URL here (messy fragments will be auto-fixed on blur)..."
+          placeholder="Paste URL here..."
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          onBlur={extractAndCleanUrls} // Trigger smart fix when user leaves the field
+          onBlur={handleBlur} // Visual fix when clicking away
           required
           rows={4}
           style={{
@@ -111,10 +134,8 @@ export default function Home() {
             borderRadius: 4,
             resize: "vertical",
             fontFamily: "monospace",
-            // Visual feedback for the "fix"
-            transition: "background-color 0.3s ease, border-color 0.3s ease",
-            backgroundColor: isFixed ? "#e6ffe6" : "white", // Flash green if fixed
-            borderColor: isFixed ? "#28a745" : "#ccc"
+            transition: "background-color 0.3s ease",
+            backgroundColor: isFixed ? "#e6ffe6" : "white"
           }}
         />
         <button
@@ -138,7 +159,6 @@ export default function Home() {
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h2>Summary (English)</h2>
-
             <button
               onClick={copySummary}
               style={{
@@ -178,7 +198,8 @@ export default function Home() {
               padding: 20,
               borderRadius: 8,
               lineHeight: 1.5,
-              border: "1px solid #e2e2e2"
+              border: "1px solid #e2e2e2",
+              overflowX: "auto"
             }}
           >
             {result.content}
