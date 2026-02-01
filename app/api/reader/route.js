@@ -39,7 +39,7 @@ export async function POST(request) {
           {
             role: "system",
             content:
-              "You are a professional summarizer. ALWAYS output summary in English language. Produce a clean, brief, easy-to-read paragraph summary."
+              "You are a professional summarizer. ALWAYS summarize in English. Produce a clean, brief, easy-to-read paragraph summary."
           },
           {
             role: "user",
