@@ -1,79 +1,225 @@
-export async function POST(request) {
-  const { url } = await request.json();
+"use client";
+import { useState } from "react";
 
-  if (!url) {
-    return Response.json({ error: "URL is required" }, { status: 400 });
-  }
+export default function Home() {
+  const [url, setUrl] = useState("");
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [isFixed, setIsFixed] = useState(false);
 
-  try {
-    // 1. Fetch raw content using Jina Reader
-    const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${process.env.JINA_API_KEY}`,
-        "X-With-Links-Summary": "true" // Optional: Tells Jina to gather links/metadata
+  // --- LOGIC: URL CLEANER ---
+  function getCleanedUrl(raw) {
+    if (!raw) return "";
+    const rawLines = raw.split('\n');
+    const validUrlLines = [];
+
+    rawLines.forEach(line => {
+      let trimmed = line.trim();
+      if (!trimmed) return;
+
+      trimmed = trimmed.replace(/^URL:\s*/i, '');
+
+      // Aggressive space removal for http/https lines
+      if (/^https?:\/\//i.test(trimmed)) {
+         trimmed = trimmed.replace(/\s+/g, '');
+      }
+
+      const firstChar = trimmed.charAt(0);
+      const isFragmentStart = ['/', '?', '&', '=', '#', '_', '%'].includes(firstChar);
+      
+      if (isFragmentStart) {
+         trimmed = trimmed.replace(/\s+/g, '');
+      }
+
+      const isFragment = isFragmentStart || 
+                         trimmed.toLowerCase().startsWith('utm') ||
+                         trimmed.toLowerCase().startsWith('gad') ||
+                         trimmed.toLowerCase().startsWith('gclid') ||
+                         trimmed.toLowerCase().startsWith('wbraid') ||
+                         trimmed.includes('=');
+
+      const hasSpaces = /\s/.test(trimmed);
+      const hasDot = trimmed.includes('.');
+
+      if (isFragment && validUrlLines.length > 0) {
+        validUrlLines[validUrlLines.length - 1] += trimmed;
+      } else if (!hasSpaces && hasDot) {
+        validUrlLines.push(trimmed);
       }
     });
 
-    if (!jinaRes.ok) {
-        throw new Error(`Jina Reader failed: ${jinaRes.statusText}`);
-    }
-
-    const markdown = await jinaRes.text();
-
-    // 2. Prepare content for Groq (truncate to avoid token limits if necessary)
-    // Most models handle ~8k tokens. 30,000 chars is a safe rough limit.
-    const truncatedContent = markdown.length > 30000 
-      ? markdown.substring(0, 30000) + "\n...(content truncated)" 
-      : markdown;
-
-    // 3. Call Groq for Summarization
-    const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "openai/gpt-oss-20b", // The specific model you requested
-        messages: [
-          {
-            role: "system",
-            content: "You are a helpful assistant. Please provide a concise and insightful summary of the following web page content."
-          },
-          {
-            role: "user",
-            content: truncatedContent
-          }
-        ],
-        temperature: 0.5, // Lower temperature for more factual summaries
-        max_tokens: 1024
-      })
+    const polishedUrls = validUrlLines.map(u => {
+      let clean = u.replace(/[#•*]+$/, '');
+      if (!/^https?:\/\//i.test(clean)) {
+        clean = 'https://' + clean;
+      }
+      return clean;
     });
 
-    const groqData = await groqRes.json();
-
-    if (!groqRes.ok) {
-      console.error("Groq API Error:", groqData);
-      // Fallback: If Groq fails, return a generic message
-      return Response.json({
-        summary: `Error generating AI summary: ${groqData.error?.message || "Unknown error"}`,
-        content: markdown
-      });
-    }
-
-    const aiSummary = groqData.choices?.[0]?.message?.content || "No summary generated.";
-
-    return Response.json({
-      summary: aiSummary,
-      content: markdown
-    });
-
-  } catch (err) {
-    console.error(err);
-    return Response.json(
-      { error: "Failed to process URL", details: err.message },
-      { status: 500 }
-    );
+    return polishedUrls.join('\n');
   }
+
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData("text");
+    const cleaned = getCleanedUrl(pastedData);
+    setUrl(cleaned || pastedData); 
+    if (cleaned !== pastedData) {
+      setIsFixed(true);
+      setTimeout(() => setIsFixed(false), 500);
+    }
+  };
+
+  function handleBlur() {
+    const cleaned = getCleanedUrl(url);
+    if (cleaned && cleaned !== url) {
+      setUrl(cleaned);
+      setIsFixed(true);
+      setTimeout(() => setIsFixed(false), 500);
+    }
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const cleanedUrl = getCleanedUrl(url);
+    if (cleanedUrl && cleanedUrl !== url) {
+        setUrl(cleanedUrl);
+    }
+    const targetUrl = (cleanedUrl || url).split('\n')[0].trim();
+
+    if (!targetUrl) {
+        alert("Please enter a valid URL");
+        return;
+    }
+
+    setLoading(true);
+    setResult(null);
+    setCopied(false);
+
+    try {
+        const res = await fetch("/api/reader", {
+            method: "POST",
+            body: JSON.stringify({ url: targetUrl }),
+            headers: { "Content-Type": "application/json" }
+        });
+
+        const data = await res.json();
+        setResult(data);
+    } catch (err) {
+        console.error(err);
+        alert("An error occurred.");
+    } finally {
+        setLoading(false);
+    }
+  }
+
+  function copySummary() {
+    if (!result?.summary) return;
+    navigator.clipboard.writeText(result.summary);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  return (
+    <main style={{ maxWidth: 700, margin: "40px auto", fontFamily: "sans-serif" }}>
+      <h1>Jina Reader – URL Summary</h1>
+
+      <form onSubmit={handleSubmit} style={{ marginBottom: "20px" }}>
+        <textarea
+          placeholder="Paste URL here..."
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onPaste={handlePaste}
+          onBlur={handleBlur}
+          required
+          rows={4}
+          style={{
+            padding: 10,
+            width: "100%",
+            marginBottom: 10,
+            border: "1px solid #ccc",
+            borderRadius: 4,
+            resize: "vertical",
+            fontFamily: "monospace",
+            transition: "all 0.3s ease",
+            backgroundColor: isFixed ? "#d4edda" : "#fff",
+            borderColor: isFixed ? "#28a745" : "#ccc"
+          }}
+        />
+        <button
+          type="submit"
+          style={{
+            padding: 12,
+            width: "100%",
+            cursor: "pointer",
+            background: "#222",
+            color: "#fff",
+            border: "none",
+            borderRadius: 4,
+            fontSize: 16
+          }}
+        >
+          {loading ? "Processing..." : "Read & Summarize"}
+        </button>
+      </form>
+
+      {result && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h2>Summary (English)</h2>
+            <button
+              onClick={copySummary}
+              style={{
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                fontSize: 18,
+                padding: "6px 10px"
+              }}
+              title="Copy summary"
+            >
+              📋
+            </button>
+          </div>
+
+          {copied && (
+            <div style={{ color: "green", marginBottom: 10 }}>Copied!</div>
+          )}
+
+          {/* UPDATED: Added whiteSpace: "pre-wrap" to respect Markdown newlines/bullets.
+            Note: For full bold/header rendering, you would need 'react-markdown'.
+          */}
+          <div
+            style={{
+              background: "#eef2ff",
+              padding: 16,
+              borderRadius: 8,
+              lineHeight: 1.6,
+              border: "1px solid #d0d7ff",
+              whiteSpace: "pre-wrap", 
+              fontFamily: "sans-serif"
+            }}
+          >
+            {result.summary}
+          </div>
+
+          <h2 style={{ marginTop: 30 }}>Extracted Content</h2>
+          <pre
+            style={{
+              whiteSpace: "pre-wrap",
+              background: "#f3f3f3",
+              padding: 20,
+              borderRadius: 8,
+              lineHeight: 1.5,
+              border: "1px solid #e2e2e2",
+              overflowX: "auto"
+            }}
+          >
+            {result.content}
+          </pre>
+        </div>
+      )}
+    </main>
+  );
 }
