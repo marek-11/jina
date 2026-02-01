@@ -1,28 +1,28 @@
 import { NextResponse } from "next/server";
 
-// --- HELPER: KEY ROTATION ---
-function getRotatingKey(envVarName) {
+// --- HELPER: GET KEYS AS LIST ---
+// Returns a shuffled array of keys so we don't always start with the first one
+function getKeyList(envVarName) {
   const envVar = process.env[envVarName];
-  if (!envVar) return null;
-  // Split by comma, trim whitespace, and filter out empty strings
+  if (!envVar) return [];
+  
   const keys = envVar.split(',').map(k => k.trim()).filter(k => k);
-  if (keys.length === 0) return null;
-  // Return a random key from the list
-  return keys[Math.floor(Math.random() * keys.length)];
+  
+  // Shuffle keys (Fisher-Yates) to distribute load randomly
+  for (let i = keys.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [keys[i], keys[j]] = [keys[j], keys[i]];
+  }
+  
+  return keys;
 }
 
-// --- HELPER: URL CLEANING LOGIC ---
+// --- HELPER: URL CLEANING ---
 function cleanUrl(raw) {
   if (!raw) return "";
   let trimmed = raw.replace(/^URL:\s*/i, '').trim();
-  
-  if (/^https?:\/\//i.test(trimmed)) {
-    trimmed = trimmed.replace(/\s+/g, '');
-  }
-  
-  if (!/^https?:\/\//i.test(trimmed)) {
-    trimmed = 'https://' + trimmed;
-  }
+  if (/^https?:\/\//i.test(trimmed)) trimmed = trimmed.replace(/\s+/g, '');
+  if (!/^https?:\/\//i.test(trimmed)) trimmed = 'https://' + trimmed;
   return trimmed;
 }
 
@@ -34,75 +34,103 @@ export async function POST(request) {
     return NextResponse.json({ error: "URL is required" }, { status: 400 });
   }
 
-  // 1. Get Rotating Keys
-  const jinaKey = getRotatingKey('JINA_API_KEY');
-  const groqKey = getRotatingKey('GROQ_API_KEY');
+  // 1. Prepare Key Lists
+  const jinaKeys = getKeyList('JINA_API_KEY');
+  const groqKeys = getKeyList('GROQ_API_KEY');
 
-  if (!jinaKey) {
-    return NextResponse.json({ error: "Server configuration error: Missing JINA_API_KEY" }, { status: 500 });
-  }
-  if (!groqKey) {
-    return NextResponse.json({ error: "Server configuration error: Missing GROQ_API_KEY" }, { status: 500 });
-  }
+  if (jinaKeys.length === 0) return NextResponse.json({ error: "Missing JINA_API_KEY" }, { status: 500 });
+  if (groqKeys.length === 0) return NextResponse.json({ error: "Missing GROQ_API_KEY" }, { status: 500 });
 
   // 2. Clean URL
   url = cleanUrl(url);
 
   try {
-    // 3. Fetch content from Jina
-    const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${jinaKey}`, // Uses the rotated key
-        "X-With-Links-Summary": "true" 
-      }
-    });
+    // --- STEP 3: FETCH CONTENT (JINA) WITH RETRY ---
+    let markdown = null;
+    let jinaError = null;
 
-    if (!jinaRes.ok) {
-        throw new Error(`Jina Reader failed: ${jinaRes.statusText}`);
+    for (const key of jinaKeys) {
+      try {
+        const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${key}`,
+            "X-With-Links-Summary": "true" 
+          }
+        });
+
+        if (!jinaRes.ok) {
+          // If 401 (Unauthorized) or 402/429 (Payment/Rate Limit), throw to trigger retry
+          throw new Error(`Status ${jinaRes.status}: ${jinaRes.statusText}`);
+        }
+
+        markdown = await jinaRes.text();
+        // If successful, break the loop
+        break; 
+      } catch (err) {
+        console.warn(`Jina key ending in ...${key.slice(-4)} failed. Retrying...`, err.message);
+        jinaError = err;
+        // Continue to next key
+      }
     }
 
-    const markdown = await jinaRes.text();
+    if (!markdown) {
+      throw new Error(`All Jina keys failed. Last error: ${jinaError?.message}`);
+    }
+
+    // Truncate if necessary
     const truncatedContent = markdown.length > 30000 
       ? markdown.substring(0, 30000) + "\n...(content truncated)" 
       : markdown;
 
-    // 4. Call Groq for Summarization
-    const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${groqKey}`, // Uses the rotated key
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile", 
-        messages: [
-          {
-            role: "system",
-            content: "You are a helpful assistant. Summarize the provided text in a single, brief, and concise paragraph. Base your summary STRICTLY on the provided content below. Do not add outside knowledge. ALWAYS return the summary in English."
+    // --- STEP 4: SUMMARIZE (GROQ) WITH RETRY ---
+    let aiSummary = null;
+    let groqError = null;
+
+    for (const key of groqKeys) {
+      try {
+        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${key}`,
+            "Content-Type": "application/json"
           },
-          {
-            role: "user",
-            content: truncatedContent
-          }
-        ],
-        temperature: 0.5, 
-        max_tokens: 500
-      })
-    });
+          body: JSON.stringify({
+            model: "llama-3.3-70b-versatile", 
+            messages: [
+              {
+                role: "system",
+                content: "You are a helpful assistant. Summarize the provided text in a single, brief, and concise paragraph. Base your summary STRICTLY on the provided content below. Do not add outside knowledge. ALWAYS return the summary in English."
+              },
+              {
+                role: "user",
+                content: truncatedContent
+              }
+            ],
+            temperature: 0.5, 
+            max_tokens: 500
+          })
+        });
 
-    const groqData = await groqRes.json();
+        const groqData = await groqRes.json();
 
-    if (!groqRes.ok) {
-      console.error("Groq API Error:", groqData);
-      return NextResponse.json({
-        summary: `Error generating AI summary: ${groqData.error?.message || "Unknown error"}`,
-        content: markdown
-      });
+        if (!groqRes.ok) {
+          throw new Error(`Groq API Error: ${groqData.error?.message || groqRes.statusText}`);
+        }
+
+        aiSummary = groqData.choices?.[0]?.message?.content;
+        if (aiSummary) break; // Success
+
+      } catch (err) {
+        console.warn(`Groq key ending in ...${key.slice(-4)} failed. Retrying...`, err.message);
+        groqError = err;
+      }
     }
 
-    const aiSummary = groqData.choices?.[0]?.message?.content 
-        || `⚠️ No summary generated. Debug info: ${JSON.stringify(groqData.choices?.[0] || groqData)}`;
+    if (!aiSummary) {
+        // Fallback if all Groq keys fail, but we still return the Jina content
+        aiSummary = `⚠️ Error generating AI summary: All API keys failed. (Last error: ${groqError?.message})`;
+    }
 
     // 5. Format Output
     const finalOutput = `**URL:** ${url}\n\n${aiSummary}`;
