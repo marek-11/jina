@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import ReactMarkdown from "react-markdown"; // <--- IMPORT THIS
+import { useState, useEffect } from "react"; // <--- Added useEffect
+import ReactMarkdown from "react-markdown";
 
 export default function Home() {
   const [url, setUrl] = useState("");
@@ -8,6 +8,35 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isFixed, setIsFixed] = useState(false);
+
+  // --- KEYBOARD SHORTCUT: Press 'D' to Clear ---
+  useEffect(() => {
+    function handleKeyDown(e) {
+      // Check if "d" or "D" was pressed
+      if (e.key === "d" || e.key === "D") {
+        // IGNORE if the user is currently typing inside the textarea or an input
+        // (Otherwise they can't type URLs containing the letter 'd')
+        const activeTag = document.activeElement.tagName.toLowerCase();
+        if (activeTag === "textarea" || activeTag === "input") {
+          return;
+        }
+
+        // If not typing, perform the clear action
+        setUrl("");
+        setResult(null); // Optional: Clear the result too if you want a full reset
+        // setIsFixed(true); // Optional: Trigger flash to show something happened
+        // setTimeout(() => setIsFixed(false), 200);
+      }
+    }
+
+    // Attach listener
+    window.addEventListener("keydown", handleKeyDown);
+
+    // Cleanup listener
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
 
   // --- LOGIC: URL CLEANER ---
   function getCleanedUrl(raw) {
@@ -20,7 +49,6 @@ export default function Home() {
       if (!trimmed) return;
       trimmed = trimmed.replace(/^URL:\s*/i, '');
 
-      // Aggressive space removal for http/https lines
       if (/^https?:\/\//i.test(trimmed)) {
          trimmed = trimmed.replace(/\s+/g, '');
       }
@@ -127,6 +155,7 @@ export default function Home() {
 
       <form onSubmit={handleSubmit} style={{ marginBottom: "20px" }}>
         <textarea
+          id="urlInput"
           placeholder="Paste URL here..."
           value={url}
           onChange={(e) => setUrl(e.target.value)}
@@ -147,21 +176,44 @@ export default function Home() {
             borderColor: isFixed ? "#28a745" : "#ccc"
           }}
         />
-        <button
-          type="submit"
-          style={{
-            padding: 12,
-            width: "100%",
-            cursor: "pointer",
-            background: "#222",
-            color: "#fff",
-            border: "none",
-            borderRadius: 4,
-            fontSize: 16
-          }}
-        >
-          {loading ? "Processing..." : "Read & Summarize"}
-        </button>
+        <div style={{display:'flex', gap: '10px'}}>
+            <button
+            type="submit"
+            style={{
+                flex: 1,
+                padding: 12,
+                cursor: "pointer",
+                background: "#222",
+                color: "#fff",
+                border: "none",
+                borderRadius: 4,
+                fontSize: 16
+            }}
+            >
+            {loading ? "Processing..." : "Read & Summarize"}
+            </button>
+            
+            {/* Optional: Visual "Clear" button that does the same thing */}
+            <button
+                type="button"
+                onClick={() => { setUrl(""); setResult(null); }}
+                title="Clear input (Press 'D')"
+                style={{
+                    padding: "0 15px",
+                    cursor: "pointer",
+                    background: "#ff4d4f",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 4,
+                    fontSize: 16
+                }}
+            >
+            ✕
+            </button>
+        </div>
+        <p style={{fontSize: '0.8rem', color: '#666', marginTop: '5px'}}>
+            Tip: Press <strong>'D'</strong> to clear (when not typing).
+        </p>
       </form>
 
       {result && (
@@ -187,7 +239,6 @@ export default function Home() {
             <div style={{ color: "green", marginBottom: 10 }}>Copied!</div>
           )}
 
-          {/* RENDERER: This block now uses ReactMarkdown to render bold/links/lists */}
           <div
             style={{
               background: "#eef2ff",
@@ -200,7 +251,6 @@ export default function Home() {
           >
             <ReactMarkdown 
               components={{
-                // Optional: Custom styling for specific markdown elements
                 h1: ({node, ...props}) => <h3 style={{marginTop: 0}} {...props} />,
                 h2: ({node, ...props}) => <h4 style={{marginTop: 10}} {...props} />,
                 li: ({node, ...props}) => <li style={{marginBottom: 4}} {...props} />,
