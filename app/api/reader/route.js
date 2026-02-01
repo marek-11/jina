@@ -1,3 +1,6 @@
+Here is the updated full content for `jina-main (1)/jina-main/app/api/reader/route.js`:
+
+```javascript
 import { NextResponse } from "next/server";
 
 // --- HELPER: GET KEYS AS LIST ---
@@ -133,7 +136,8 @@ export async function POST(request) {
     }
 
     // 5. Format Output
-    const finalOutput = `**URL:** ${url}\n\n${aiSummary}`;
+    // We wrap the URL in markdown link syntax [url](url) so ReactMarkdown renders it as an anchor tag
+    const finalOutput = `**URL:** [${url}](${url})\n\n${aiSummary}`;
 
     return NextResponse.json({
       summary: finalOutput,
@@ -148,3 +152,5 @@ export async function POST(request) {
     );
   }
 }
+
+```
