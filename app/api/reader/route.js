@@ -4,9 +4,13 @@ import { NextResponse } from "next/server";
 function cleanUrl(raw) {
   if (!raw) return "";
   let trimmed = raw.replace(/^URL:\s*/i, '').trim();
+  
+  // Aggressive space removal for http/https lines
   if (/^https?:\/\//i.test(trimmed)) {
     trimmed = trimmed.replace(/\s+/g, '');
   }
+  
+  // Ensure protocol
   if (!/^https?:\/\//i.test(trimmed)) {
     trimmed = 'https://' + trimmed;
   }
@@ -21,11 +25,11 @@ export async function POST(request) {
     return NextResponse.json({ error: "URL is required" }, { status: 400 });
   }
 
-  // Apply server-side cleaning
+  // 1. Get the "Corrected and Exact" URL
   url = cleanUrl(url);
 
   try {
-    // 1. Fetch content from Jina
+    // 2. Fetch content from Jina
     const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
       method: "GET",
       headers: {
@@ -43,7 +47,7 @@ export async function POST(request) {
       ? markdown.substring(0, 30000) + "\n...(content truncated)" 
       : markdown;
 
-    // 2. Fetch Summary from Groq
+    // 3. Fetch Summary from Groq (Brief Paragraph)
     const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -55,7 +59,6 @@ export async function POST(request) {
         messages: [
           {
             role: "system",
-            // UPDATED PROMPT: Forces a single paragraph format
             content: "You are a helpful assistant. Summarize the provided content in a single, brief, and concise paragraph. Do not use bullet points, lists, or section headers. Focus on the core message and key details. ALWAYS return the summary in English."
           },
           {
@@ -64,7 +67,7 @@ export async function POST(request) {
           }
         ],
         temperature: 0.5, 
-        max_tokens: 500 // Reduced tokens since we only want a paragraph
+        max_tokens: 500
       })
     });
 
@@ -80,8 +83,12 @@ export async function POST(request) {
 
     const aiSummary = groqData.choices?.[0]?.message?.content || "No summary generated.";
 
+    // 4. Prepend the URL to the final output
+    // This ensures it is always at the top, formatted nicely
+    const finalOutput = `**URL:** ${url}\n\n${aiSummary}`;
+
     return NextResponse.json({
-      summary: aiSummary,
+      summary: finalOutput,
       content: markdown
     });
 
