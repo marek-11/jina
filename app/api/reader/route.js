@@ -1,6 +1,3 @@
-Here is the updated full content for `jina-main (1)/jina-main/app/api/reader/route.js`:
-
-```javascript
 import { NextResponse } from "next/server";
 
 // --- HELPER: GET KEYS AS LIST ---
@@ -152,5 +149,3 @@ export async function POST(request) {
     );
   }
 }
-
-```
