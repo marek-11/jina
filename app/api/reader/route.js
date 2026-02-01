@@ -6,7 +6,10 @@ export async function POST(request) {
   }
 
   try {
-    const jinaRes = await fetch("https://r.jina.ai/", {
+    //
+    // 1️⃣ Extract text from URL using Jina Reader
+    //
+    const readerRes = await fetch("https://r.jina.ai/", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -14,17 +17,55 @@ export async function POST(request) {
       },
       body: JSON.stringify({
         url,
-        format: "text", // <-- returns plain text, NOT JSON
+        format: "text",
         fetch: { timeout: 15000 }
       })
     });
 
-    const text = await jinaRes.text(); // <-- Must read as text
+    const extractedText = await readerRes.text();
 
-    return Response.json({ content: text });
+    //
+    // 2️⃣ Summarize the extracted text using Jina LLM
+    //
+    const summaryRes = await fetch("https://api.jina.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.JINA_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: "jina-llm-chat",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a professional summarizer. Produce a clean, brief, easy-to-read paragraph summary."
+          },
+          {
+            role: "user",
+            content: extractedText.slice(0, 12000) // protect token limit
+          }
+        ],
+        max_tokens: 250,
+        temperature: 0.3
+      })
+    });
+
+    const summaryJson = await summaryRes.json();
+    const summary =
+      summaryJson?.choices?.[0]?.message?.content ||
+      "No summary produced.";
+
+    //
+    // 3️⃣ Return both extracted text + summary
+    //
+    return Response.json({
+      summary,
+      content: extractedText
+    });
   } catch (err) {
     return Response.json(
-      { error: "Failed to fetch from Jina Reader", details: err.message },
+      { error: "Failed to process URL", details: err.message },
       { status: 500 }
     );
   }
