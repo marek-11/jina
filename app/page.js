@@ -23,8 +23,8 @@ export default function Home() {
   }
 
   return (
-    <main style={{ maxWidth: 600, margin: "40px auto", fontFamily: "sans-serif" }}>
-      <h1>Jina Reader Webapp</h1>
+    <main style={{ maxWidth: 700, margin: "40px auto", fontFamily: "sans-serif" }}>
+      <h1>Jina Reader – URL Summary</h1>
 
       <form onSubmit={handleSubmit} style={{ marginBottom: "20px" }}>
         <input
@@ -33,28 +33,58 @@ export default function Home() {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           required
-          style={{ padding: 10, width: "100%", marginBottom: 10 }}
+          style={{
+            padding: 10,
+            width: "100%",
+            marginBottom: 10,
+            border: "1px solid #ccc",
+            borderRadius: 4
+          }}
         />
         <button
           type="submit"
-          style={{ padding: 10, width: "100%", cursor: "pointer" }}
+          style={{
+            padding: 12,
+            width: "100%",
+            cursor: "pointer",
+            background: "#222",
+            color: "#fff",
+            border: "none",
+            borderRadius: 4,
+            fontSize: 16
+          }}
         >
-          {loading ? "Loading..." : "Read with Jina"}
+          {loading ? "Processing..." : "Read & Summarize"}
         </button>
       </form>
 
       {result && (
         <div>
-          <h2>Extracted Content</h2>
+          <h2>Summary</h2>
+          <p
+            style={{
+              background: "#eef2ff",
+              padding: 16,
+              borderRadius: 8,
+              lineHeight: 1.6,
+              border: "1px solid #d0d7ff"
+            }}
+          >
+            {result.summary}
+          </p>
+
+          <h2 style={{ marginTop: 30 }}>Extracted Content</h2>
           <pre
             style={{
               whiteSpace: "pre-wrap",
               background: "#f3f3f3",
               padding: 20,
-              borderRadius: 8
+              borderRadius: 8,
+              lineHeight: 1.5,
+              border: "1px solid #e2e2e2"
             }}
           >
-            {JSON.stringify(result, null, 2)}
+            {result.content}
           </pre>
         </div>
       )}
