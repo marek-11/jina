@@ -25,7 +25,7 @@ export async function POST(request) {
     const extractedText = await readerRes.text();
 
     //
-    // 2️⃣ Summarize the extracted text using Jina LLM
+    // 2️⃣ Summarize extracted text using Jina LLM
     //
     const summaryRes = await fetch("https://api.jina.ai/v1/chat/completions", {
       method: "POST",
@@ -39,11 +39,11 @@ export async function POST(request) {
           {
             role: "system",
             content:
-              "You are a professional summarizer. Produce a clean, brief, easy-to-read paragraph summary."
+              "You are a professional summarizer. ALWAYS summarize in English. Produce a clean, brief, easy-to-read paragraph summary."
           },
           {
             role: "user",
-            content: extractedText.slice(0, 12000) // protect token limit
+            content: extractedText.slice(0, 15000) // protect token limits
           }
         ],
         max_tokens: 250,
@@ -57,13 +57,15 @@ export async function POST(request) {
       "No summary produced.";
 
     //
-    // 3️⃣ Return both extracted text + summary
+    // 3️⃣ Return both summary + full extracted content
     //
     return Response.json({
       summary,
       content: extractedText
     });
+
   } catch (err) {
+    console.error(err);
     return Response.json(
       { error: "Failed to process URL", details: err.message },
       { status: 500 }
