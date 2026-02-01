@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import ReactMarkdown from "react-markdown"; // <--- IMPORT THIS
 
 export default function Home() {
   const [url, setUrl] = useState("");
@@ -8,31 +9,25 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const [isFixed, setIsFixed] = useState(false);
 
-  // --- LOGIC: URL CLEANER (Enhanced) ---
+  // --- LOGIC: URL CLEANER ---
   function getCleanedUrl(raw) {
     if (!raw) return "";
-
     const rawLines = raw.split('\n');
     const validUrlLines = [];
 
     rawLines.forEach(line => {
       let trimmed = line.trim();
       if (!trimmed) return;
-
-      // 1. Remove "URL:" prefix (common in emails/chat)
       trimmed = trimmed.replace(/^URL:\s*/i, '');
 
-      // 2. AGGRESSIVE FIX: If line starts with http/https, remove ALL spaces immediately.
-      // This fixes: "https://site.com/ en/ page" -> "https://site.com/en/page"
+      // Aggressive space removal for http/https lines
       if (/^https?:\/\//i.test(trimmed)) {
          trimmed = trimmed.replace(/\s+/g, '');
       }
 
-      // 3. Fragment Detection
       const firstChar = trimmed.charAt(0);
       const isFragmentStart = ['/', '?', '&', '=', '#', '_', '%'].includes(firstChar);
       
-      // If it looks like a fragment, we also strip spaces (e.g. "? q = 1" -> "?q=1")
       if (isFragmentStart) {
          trimmed = trimmed.replace(/\s+/g, '');
       }
@@ -44,24 +39,20 @@ export default function Home() {
                          trimmed.toLowerCase().startsWith('wbraid') ||
                          trimmed.includes('=');
 
-      // Check for validity
-      // If we stripped spaces, 'hasSpaces' is now false, so valid URL check passes easier
-      const hasSpaces = /\s/.test(trimmed); 
+      const hasSpaces = /\s/.test(trimmed);
       const hasDot = trimmed.includes('.');
 
       if (isFragment && validUrlLines.length > 0) {
-        // Merge with previous line
         validUrlLines[validUrlLines.length - 1] += trimmed;
       } else if (!hasSpaces && hasDot) {
-        // Treat as new URL line
         validUrlLines.push(trimmed);
       }
     });
 
     const polishedUrls = validUrlLines.map(u => {
-      let clean = u.replace(/[#•*]+$/, ''); // Remove trailing garbage
+      let clean = u.replace(/[#•*]+$/, '');
       if (!/^https?:\/\//i.test(clean)) {
-        clean = 'https://' + clean; // Ensure protocol
+        clean = 'https://' + clean;
       }
       return clean;
     });
@@ -69,23 +60,17 @@ export default function Home() {
     return polishedUrls.join('\n');
   }
 
-  // --- HANDLER: ON PASTE (Immediate Fix) ---
   const handlePaste = (e) => {
     e.preventDefault();
     const pastedData = e.clipboardData.getData("text");
     const cleaned = getCleanedUrl(pastedData);
-    
-    // Replace content with cleaned version
     setUrl(cleaned || pastedData); 
-    
-    // Visual feedback
     if (cleaned !== pastedData) {
       setIsFixed(true);
       setTimeout(() => setIsFixed(false), 500);
     }
   };
 
-  // --- HANDLER: ON BLUR (Manual Fix) ---
   function handleBlur() {
     const cleaned = getCleanedUrl(url);
     if (cleaned && cleaned !== url) {
@@ -95,15 +80,12 @@ export default function Home() {
     }
   }
 
-  // --- HANDLER: SUBMIT ---
   async function handleSubmit(e) {
     e.preventDefault();
-    
     const cleanedUrl = getCleanedUrl(url);
     if (cleanedUrl && cleanedUrl !== url) {
         setUrl(cleanedUrl);
     }
-
     const targetUrl = (cleanedUrl || url).split('\n')[0].trim();
 
     if (!targetUrl) {
@@ -161,7 +143,7 @@ export default function Home() {
             resize: "vertical",
             fontFamily: "monospace",
             transition: "all 0.3s ease",
-            backgroundColor: isFixed ? "#d4edda" : "#fff", // Light green flash
+            backgroundColor: isFixed ? "#d4edda" : "#fff",
             borderColor: isFixed ? "#28a745" : "#ccc"
           }}
         />
@@ -205,17 +187,29 @@ export default function Home() {
             <div style={{ color: "green", marginBottom: 10 }}>Copied!</div>
           )}
 
-          <p
+          {/* RENDERER: This block now uses ReactMarkdown to render bold/links/lists */}
+          <div
             style={{
               background: "#eef2ff",
               padding: 16,
               borderRadius: 8,
               lineHeight: 1.6,
-              border: "1px solid #d0d7ff"
+              border: "1px solid #d0d7ff",
+              color: "#333"
             }}
           >
-            {result.summary}
-          </p>
+            <ReactMarkdown 
+              components={{
+                // Optional: Custom styling for specific markdown elements
+                h1: ({node, ...props}) => <h3 style={{marginTop: 0}} {...props} />,
+                h2: ({node, ...props}) => <h4 style={{marginTop: 10}} {...props} />,
+                li: ({node, ...props}) => <li style={{marginBottom: 4}} {...props} />,
+                a: ({node, ...props}) => <a style={{color: "#0066cc", textDecoration: "underline"}} target="_blank" rel="noopener noreferrer" {...props} />
+              }}
+            >
+              {result.summary}
+            </ReactMarkdown>
+          </div>
 
           <h2 style={{ marginTop: 30 }}>Extracted Content</h2>
           <pre
