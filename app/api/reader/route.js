@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-// --- HELPER: URL CLEANING LOGIC (Server-Side Safety Net) ---
+// --- HELPER: URL CLEANING LOGIC ---
 function cleanUrl(raw) {
   if (!raw) return "";
   let trimmed = raw.replace(/^URL:\s*/i, '').trim();
@@ -25,6 +25,7 @@ export async function POST(request) {
   url = cleanUrl(url);
 
   try {
+    // 1. Fetch content from Jina
     const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
       method: "GET",
       headers: {
@@ -42,6 +43,7 @@ export async function POST(request) {
       ? markdown.substring(0, 30000) + "\n...(content truncated)" 
       : markdown;
 
+    // 2. Fetch Summary from Groq
     const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -53,8 +55,8 @@ export async function POST(request) {
         messages: [
           {
             role: "system",
-            // UPDATED PROMPT: Explicitly asks for the style in your example
-            content: "You are a helpful assistant. Summarize the content into a structured 'Quick Overview'. ALWAYS return the response in English. Use Markdown formatting. Use **Bold Text** for section headers and categories (e.g., **Title & Theme**, **Broadcast Schedule**). Use bullet points for clear readability."
+            // UPDATED PROMPT: Forces a single paragraph format
+            content: "You are a helpful assistant. Summarize the provided content in a single, brief, and concise paragraph. Do not use bullet points, lists, or section headers. Focus on the core message and key details. ALWAYS return the summary in English."
           },
           {
             role: "user",
@@ -62,7 +64,7 @@ export async function POST(request) {
           }
         ],
         temperature: 0.5, 
-        max_tokens: 1024
+        max_tokens: 500 // Reduced tokens since we only want a paragraph
       })
     });
 
