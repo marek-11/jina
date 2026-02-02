@@ -96,8 +96,11 @@ export default function Home() {
     }
   };
 
-  // --- NEW: Handle Paste Button Click ---
-  const handlePasteClick = async () => {
+  // --- UPDATED: Handle Paste Button Click ---
+  const handlePasteClick = async (onlyIfEmpty = false) => {
+    // If we only want to paste into an empty box, stop if URL exists
+    if (onlyIfEmpty && url) return;
+
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
@@ -108,7 +111,7 @@ export default function Home() {
       }
     } catch (err) {
       console.error("Failed to read clipboard:", err);
-      alert("Please allow clipboard permissions or paste manually.");
+      // alert("Please allow clipboard permissions or paste manually.");
     }
   };
 
@@ -176,6 +179,7 @@ export default function Home() {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             onPaste={handlePaste}
+            onClick={() => handlePasteClick(true)} // Paste only if empty
             onBlur={handleBlur}
             required
             rows={4}
@@ -197,7 +201,7 @@ export default function Home() {
           {/* PASTE BUTTON ICON */}
           <button
             type="button"
-            onClick={handlePasteClick}
+            onClick={() => handlePasteClick(false)} // Force paste
             title="Paste from Clipboard"
             style={{
               position: "absolute",
