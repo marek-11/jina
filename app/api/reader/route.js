@@ -36,9 +36,11 @@ export async function POST(request) {
 
   // 1. Prepare Configuration
   const provider = (process.env.PROVIDER || 'jina').toLowerCase();
-  const groqKeys = getKeyList('GROQ_API_KEY');
+  
+  // UPDATED: Use API_KEY instead of GROQ_API_KEY
+  const apiKeys = getKeyList('API_KEY');
 
-  if (groqKeys.length === 0) return NextResponse.json({ error: "Missing GROQ_API_KEY" }, { status: 500 });
+  if (apiKeys.length === 0) return NextResponse.json({ error: "Missing API_KEY" }, { status: 500 });
 
   // 2. Clean URL
   url = cleanUrl(url);
@@ -128,13 +130,17 @@ export async function POST(request) {
       ? markdown.substring(0, 30000) + "\n...(content truncated)" 
       : markdown;
 
-    // --- STEP 4: SUMMARIZE (GROQ) WITH RETRY ---
+    // --- STEP 4: SUMMARIZE WITH RETRY ---
     let aiSummary = null;
-    let groqError = null;
+    let summaryError = null;
+    
+    // UPDATED: Use the env var or fallback to the previous default
+    const summaryBaseUrl = process.env.SUMMARY_BASE_URL || "https://api.openai.com/v1/chat/completions";
 
-    for (const key of groqKeys) {
+    // UPDATED: Iterate over apiKeys
+    for (const key of apiKeys) {
       try {
-        const groqRes = await fetch("https://marqos.zeabur.app/v1/chat/completions", {
+        const summaryRes = await fetch(summaryBaseUrl, {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${key}`,
@@ -157,27 +163,26 @@ export async function POST(request) {
           })
         });
 
-        const groqData = await groqRes.json();
+        const summaryData = await summaryRes.json();
 
-        if (!groqRes.ok) {
-          throw new Error(`Groq API Error: ${groqData.error?.message || groqRes.statusText}`);
+        if (!summaryRes.ok) {
+          throw new Error(`Summary API Error: ${summaryData.error?.message || summaryRes.statusText}`);
         }
 
-        aiSummary = groqData.choices?.[0]?.message?.content;
+        aiSummary = summaryData.choices?.[0]?.message?.content;
         if (aiSummary) break; // Success
 
       } catch (err) {
-        console.warn(`Groq key ending in ...${key.slice(-4)} failed. Retrying...`, err.message);
-        groqError = err;
+        console.warn(`Summary key ending in ...${key.slice(-4)} failed. Retrying...`, err.message);
+        summaryError = err;
       }
     }
 
     if (!aiSummary) {
-        aiSummary = `⚠️ Error generating AI summary: All API keys failed. (Last error: ${groqError?.message})`;
+        aiSummary = `⚠️ Error generating AI summary: All API keys failed. (Last error: ${summaryError?.message})`;
     }
 
     // 5. Format Output
-    // Removed the "Provider" line as requested
     const finalOutput = `**URL:** [${url}](${url})\n\n${aiSummary}`;
 
     return NextResponse.json({
