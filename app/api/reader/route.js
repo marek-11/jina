@@ -46,7 +46,7 @@ export async function POST(request) {
   url = cleanUrl(url);
 
   try {
-    // --- STEP 3: FETCH CONTENT (JINA, EXA, or SCRAPINGBEE) ---
+    // --- STEP 3: FETCH CONTENT (JINA, EXA, SCRAPINGBEE, or CRAWL4AI) ---
     let markdown = null;
     let fetchError = null;
 
@@ -129,6 +129,66 @@ export async function POST(request) {
 
         if (!markdown) {
             throw new Error(`All ScrapingBee keys failed. Last error: ${fetchError?.message}`);
+        }
+
+    } else if (provider === 'crawl4ai') {
+        // --- CRAWL4AI LOGIC ---
+        const c4aiKeys = getKeyList('CRAWL4AI_API_KEY');
+        // Use the env var if present, otherwise fallback to the user-supplied endpoint
+        const c4aiBaseUrl = process.env.CRAWL4AI_BASE_URL || "https://marqxxvi-crawl4ai.hf.space";
+
+        if (c4aiKeys.length === 0) return NextResponse.json({ error: "Missing CRAWL4AI_API_KEY" }, { status: 500 });
+
+        for (const key of c4aiKeys) {
+            try {
+                // Assuming standard Crawl4AI REST structure: POST /crawl with { "urls": [...] }
+                const res = await fetch(`${c4aiBaseUrl}/crawl`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${key}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        urls: [url], // Crawl4AI typically expects a list
+                        priority: 10
+                    })
+                });
+
+                if (!res.ok) {
+                    const errText = await res.text();
+                    throw new Error(`Crawl4AI Status ${res.status}: ${errText}`);
+                }
+
+                const data = await res.json();
+                
+                // Attempt to locate the markdown in the response structure
+                let resultItem = null;
+                if (data.results && Array.isArray(data.results) && data.results.length > 0) {
+                    resultItem = data.results[0];
+                } else if (data.result) {
+                    resultItem = data.result;
+                }
+
+                // Extract markdown string or raw_markdown property
+                if (resultItem) {
+                    if (typeof resultItem.markdown === 'string') {
+                        markdown = resultItem.markdown;
+                    } else if (resultItem.markdown && resultItem.markdown.raw_markdown) {
+                        markdown = resultItem.markdown.raw_markdown;
+                    }
+                }
+
+                if (markdown) break;
+                else throw new Error("Crawl4AI returned success but no markdown content found.");
+
+            } catch (err) {
+                console.warn(`Crawl4AI key ending in ...${key.slice(-4)} failed. Retrying...`, err.message);
+                fetchError = err;
+            }
+        }
+
+        if (!markdown) {
+            throw new Error(`All Crawl4AI keys failed. Last error: ${fetchError?.message}`);
         }
 
     } else {
