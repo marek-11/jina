@@ -46,7 +46,7 @@ export async function POST(request) {
   url = cleanUrl(url);
 
   try {
-    // --- STEP 3: FETCH CONTENT (JINA or EXA) ---
+    // --- STEP 3: FETCH CONTENT (JINA, EXA, or SCRAPINGBEE) ---
     let markdown = null;
     let fetchError = null;
 
@@ -60,12 +60,12 @@ export async function POST(request) {
                 const exaRes = await fetch("https://api.exa.ai/contents", {
                     method: "POST",
                     headers: {
-                        "x-api-key": key, // Exa uses x-api-key, not Bearer
+                        "x-api-key": key,
                         "Content-Type": "application/json"
                     },
                     body: JSON.stringify({
                         urls: [url],
-                        text: true // Request full text content
+                        text: true
                     })
                 });
 
@@ -74,10 +74,9 @@ export async function POST(request) {
                 }
 
                 const data = await exaRes.json();
-                // Exa returns { results: [ { url, title, text } ] }
                 if (data.results && data.results.length > 0) {
                     markdown = data.results[0].text;
-                    break; // Success
+                    break; 
                 } else {
                     throw new Error("Exa returned no results.");
                 }
@@ -90,6 +89,46 @@ export async function POST(request) {
 
         if (!markdown) {
              throw new Error(`All Exa keys failed. Last error: ${fetchError?.message}`);
+        }
+
+    } else if (provider === 'scrapingbee') {
+        // --- SCRAPINGBEE LOGIC ---
+        const sbKeys = getKeyList('SCRAPINGBEE_API_KEY');
+        if (sbKeys.length === 0) return NextResponse.json({ error: "Missing SCRAPINGBEE_API_KEY" }, { status: 500 });
+
+        for (const key of sbKeys) {
+            try {
+                // ScrapingBee params
+                const sbParams = new URLSearchParams({
+                    api_key: key,
+                    url: url,
+                    return_page_text: 'true', // Extracts text content
+                    block_ads: 'true'         // Saves bandwidth/credits
+                    // render_js is True by default on ScrapingBee, which handles dynamic sites
+                });
+
+                const sbRes = await fetch(`https://app.scrapingbee.com/api/v1/?${sbParams.toString()}`, {
+                    method: "GET"
+                });
+
+                if (!sbRes.ok) {
+                    // ScrapingBee often returns error details in the body
+                    const errText = await sbRes.text(); 
+                    throw new Error(`ScrapingBee Status ${sbRes.status}: ${errText}`);
+                }
+
+                // With return_page_text=true, the body is the plain text content
+                markdown = await sbRes.text();
+                break;
+
+            } catch (err) {
+                console.warn(`ScrapingBee key ending in ...${key.slice(-4)} failed. Retrying...`, err.message);
+                fetchError = err;
+            }
+        }
+
+        if (!markdown) {
+            throw new Error(`All ScrapingBee keys failed. Last error: ${fetchError?.message}`);
         }
 
     } else {
