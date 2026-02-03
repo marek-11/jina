@@ -135,7 +135,7 @@ export async function POST(request) {
         // --- CRAWL4AI LOGIC ---
         const c4aiKeys = getKeyList('CRAWL4AI_API_KEY');
         // Use the env var if present, otherwise fallback to the user-supplied endpoint
-        const c4aiBaseUrl = process.env.CRAWL4AI_BASE_URL || "https://fsbxcm-crawl.hf.space";
+        const c4aiBaseUrl = process.env.CRAWL4AI_BASE_URL || "http://localhost:11235";
 
         if (c4aiKeys.length === 0) return NextResponse.json({ error: "Missing CRAWL4AI_API_KEY" }, { status: 500 });
 
