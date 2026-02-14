@@ -8,6 +8,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isFixed, setIsFixed] = useState(false);
+  const [mode, setMode] = useState("url"); // "url" or "text"
 
   // --- KEYBOARD SHORTCUT: Press 'D' to Clear ---
   useEffect(() => {
@@ -126,15 +127,28 @@ export default function Home() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const cleanedUrl = getCleanedUrl(url);
-    if (cleanedUrl && cleanedUrl !== url) {
-        setUrl(cleanedUrl);
-    }
-    const targetUrl = (cleanedUrl || url).split('\n')[0].trim();
 
-    if (!targetUrl) {
-        alert("Please enter a valid URL");
-        return;
+    let targetUrl = "";
+    let targetText = "";
+
+    if (mode === "url") {
+        const cleanedUrl = getCleanedUrl(url);
+        if (cleanedUrl && cleanedUrl !== url) {
+            setUrl(cleanedUrl);
+        }
+        targetUrl = (cleanedUrl || url).split('\n')[0].trim();
+
+        if (!targetUrl) {
+            alert("Please enter a valid URL");
+            return;
+        }
+    } else {
+        // Text mode
+        targetText = url.trim();
+        if (!targetText) {
+            alert("Please enter some text to summarize");
+            return;
+        }
     }
 
     setLoading(true);
@@ -142,9 +156,11 @@ export default function Home() {
     setCopied(false);
 
     try {
+        const payload = mode === "url" ? { url: targetUrl } : { text: targetText };
+        
         const res = await fetch("/api/reader", {
             method: "POST",
-            body: JSON.stringify({ url: targetUrl }),
+            body: JSON.stringify(payload),
             headers: { "Content-Type": "application/json" }
         });
 
@@ -167,7 +183,47 @@ export default function Home() {
 
   return (
     <main style={{ maxWidth: 700, margin: "40px auto", fontFamily: "sans-serif" }}>
-      <h1>WebCrawler</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <h1 style={{ margin: 0 }}>WebCrawler</h1>
+        
+        {/* MODE TOGGLE */}
+        <div style={{ display: "flex", background: "#f0f0f0", padding: 4, borderRadius: 8 }}>
+          <button
+            type="button"
+            onClick={() => { setMode("url"); setUrl(""); setResult(null); }}
+            style={{
+              padding: "6px 12px",
+              border: "none",
+              background: mode === "url" ? "#fff" : "transparent",
+              color: mode === "url" ? "#000" : "#666",
+              borderRadius: 6,
+              cursor: "pointer",
+              fontWeight: mode === "url" ? "bold" : "normal",
+              boxShadow: mode === "url" ? "0 2px 4px rgba(0,0,0,0.1)" : "none",
+              transition: "all 0.2s"
+            }}
+          >
+            URL
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMode("text"); setUrl(""); setResult(null); }}
+            style={{
+              padding: "6px 12px",
+              border: "none",
+              background: mode === "text" ? "#fff" : "transparent",
+              color: mode === "text" ? "#000" : "#666",
+              borderRadius: 6,
+              cursor: "pointer",
+              fontWeight: mode === "text" ? "bold" : "normal",
+              boxShadow: mode === "text" ? "0 2px 4px rgba(0,0,0,0.1)" : "none",
+              transition: "all 0.2s"
+            }}
+          >
+            Summarizer
+          </button>
+        </div>
+      </div>
 
       <form onSubmit={handleSubmit} style={{ marginBottom: "20px" }}>
         
@@ -175,14 +231,14 @@ export default function Home() {
         <div style={{ position: "relative", width: "100%", marginBottom: 10 }}>
           <textarea
             id="urlInput"
-            placeholder="Paste URL here..."
+            placeholder={mode === "url" ? "Paste URL here..." : "Paste lengthy content here to summarize..."}
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             onPaste={handlePaste}
             onClick={() => handlePasteClick(true)} // Paste only if empty
-            onBlur={handleBlur}
+            onBlur={mode === "url" ? handleBlur : undefined} // Only clean URL in URL mode
             required
-            rows={4}
+            rows={mode === "url" ? 4 : 10} // Taller box for text mode
             style={{
               padding: 10,
               paddingRight: 40, // Add padding on right so text doesn't go under the button
@@ -190,7 +246,7 @@ export default function Home() {
               border: "1px solid #ccc",
               borderRadius: 4,
               resize: "vertical",
-              fontFamily: "monospace",
+              fontFamily: mode === "url" ? "monospace" : "sans-serif",
               transition: "all 0.3s ease",
               backgroundColor: isFixed ? "#d4edda" : "#fff",
               borderColor: isFixed ? "#28a745" : "#ccc",
@@ -238,7 +294,7 @@ export default function Home() {
                 fontSize: 16
             }}
             >
-            {loading ? "Processing..." : "Read & Summarize"}
+            {loading ? "Processing..." : (mode === "url" ? "Read & Summarize" : "Summarize Content")}
             </button>
             
             <button
