@@ -246,7 +246,7 @@ export async function POST(request) {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            model: "gpt-5-nano", 
+            model: "deepseek-v3.2-reasoner", 
             messages: [
               {
                 role: "system",
