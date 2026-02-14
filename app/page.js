@@ -6,7 +6,8 @@ export default function Home() {
   const [urlInput, setUrlInput] = useState("");
   const [textInput, setTextInput] = useState("");
   const [mode, setMode] = useState("url"); // "url" or "text"
-  const [result, setResult] = useState(null);
+  const [urlResult, setUrlResult] = useState(null);
+  const [textResult, setTextResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isFixed, setIsFixed] = useState(false);
@@ -16,10 +17,14 @@ export default function Home() {
     const savedUrl = localStorage.getItem("urlInput");
     const savedText = localStorage.getItem("textInput");
     const savedMode = localStorage.getItem("mode");
+    const savedUrlResult = localStorage.getItem("urlResult");
+    const savedTextResult = localStorage.getItem("textResult");
 
     if (savedUrl) setUrlInput(savedUrl);
     if (savedText) setTextInput(savedText);
     if (savedMode) setMode(savedMode);
+    if (savedUrlResult) setUrlResult(JSON.parse(savedUrlResult));
+    if (savedTextResult) setTextResult(JSON.parse(savedTextResult));
   }, []);
 
   // --- PERSISTENCE: Save to LocalStorage on Change ---
@@ -35,6 +40,16 @@ export default function Home() {
     localStorage.setItem("mode", mode);
   }, [mode]);
 
+  useEffect(() => {
+    if (urlResult) localStorage.setItem("urlResult", JSON.stringify(urlResult));
+    else localStorage.removeItem("urlResult");
+  }, [urlResult]);
+
+  useEffect(() => {
+    if (textResult) localStorage.setItem("textResult", JSON.stringify(textResult));
+    else localStorage.removeItem("textResult");
+  }, [textResult]);
+
   // --- KEYBOARD SHORTCUT: Press 'D' to Clear ---
   useEffect(() => {
     function handleKeyDown(e) {
@@ -46,10 +61,13 @@ export default function Home() {
           return;
         }
 
-        // If not typing, perform the clear action
-        if (mode === "url") setUrlInput("");
-        else setTextInput("");
-        setResult(null);
+        if (mode === "url") {
+          setUrlInput("");
+          setUrlResult(null);
+        } else {
+          setTextInput("");
+          setTextResult(null);
+        }
       }
     }
 
@@ -187,7 +205,8 @@ export default function Home() {
     }
 
     setLoading(true);
-    setResult(null);
+    if (mode === "url") setUrlResult(null);
+    else setTextResult(null);
     setCopied(false);
 
     try {
@@ -200,7 +219,8 @@ export default function Home() {
       });
 
       const data = await res.json();
-      setResult(data);
+      if (mode === "url") setUrlResult(data);
+      else setTextResult(data);
     } catch (err) {
       console.error(err);
       alert("An error occurred.");
@@ -210,8 +230,9 @@ export default function Home() {
   }
 
   function copySummary() {
-    if (!result?.summary) return;
-    navigator.clipboard.writeText(result.summary);
+    const currentResult = mode === "url" ? urlResult : textResult;
+    if (!currentResult?.summary) return;
+    navigator.clipboard.writeText(currentResult.summary);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
@@ -225,7 +246,7 @@ export default function Home() {
         <div style={{ display: "flex", background: "#f0f0f0", padding: 4, borderRadius: 8 }}>
           <button
             type="button"
-            onClick={() => { setMode("url"); setResult(null); }}
+            onClick={() => { setMode("url"); }}
             style={{
               padding: "6px 12px",
               border: "none",
@@ -242,7 +263,7 @@ export default function Home() {
           </button>
           <button
             type="button"
-            onClick={() => { setMode("text"); setResult(null); }}
+            onClick={() => { setMode("text"); }}
             style={{
               padding: "6px 12px",
               border: "none",
@@ -335,9 +356,13 @@ export default function Home() {
           <button
             type="button"
             onClick={() => {
-              if (mode === "url") setUrlInput("");
-              else setTextInput("");
-              setResult(null);
+              if (mode === "url") {
+                setUrlInput("");
+                setUrlResult(null);
+              } else {
+                setTextInput("");
+                setTextResult(null);
+              }
             }}
             title="Clear input (Press 'D')"
             style={{
@@ -358,7 +383,7 @@ export default function Home() {
         </p>
       </form>
 
-      {result && (
+      {(mode === "url" ? urlResult : textResult) && (
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h2>Summary (English)</h2>
@@ -399,7 +424,7 @@ export default function Home() {
                 a: ({ node, ...props }) => <a style={{ color: "#0066cc", textDecoration: "underline" }} target="_blank" rel="noopener noreferrer" {...props} />
               }}
             >
-              {result.summary}
+              {(mode === "url" ? urlResult : textResult).summary}
             </ReactMarkdown>
           </div>
 
@@ -417,7 +442,7 @@ export default function Home() {
                   overflowX: "auto"
                 }}
               >
-                {result.content}
+                {(mode === "url" ? urlResult : textResult).content}
               </pre>
             </>
           )}
