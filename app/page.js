@@ -3,12 +3,37 @@ import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 
 export default function Home() {
-  const [url, setUrl] = useState("");
+  const [urlInput, setUrlInput] = useState("");
+  const [textInput, setTextInput] = useState("");
+  const [mode, setMode] = useState("url"); // "url" or "text"
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isFixed, setIsFixed] = useState(false);
-  const [mode, setMode] = useState("url"); // "url" or "text"
+
+  // --- PERSISTENCE: Load from LocalStorage on Mount ---
+  useEffect(() => {
+    const savedUrl = localStorage.getItem("urlInput");
+    const savedText = localStorage.getItem("textInput");
+    const savedMode = localStorage.getItem("mode");
+
+    if (savedUrl) setUrlInput(savedUrl);
+    if (savedText) setTextInput(savedText);
+    if (savedMode) setMode(savedMode);
+  }, []);
+
+  // --- PERSISTENCE: Save to LocalStorage on Change ---
+  useEffect(() => {
+    localStorage.setItem("urlInput", urlInput);
+  }, [urlInput]);
+
+  useEffect(() => {
+    localStorage.setItem("textInput", textInput);
+  }, [textInput]);
+
+  useEffect(() => {
+    localStorage.setItem("mode", mode);
+  }, [mode]);
 
   // --- KEYBOARD SHORTCUT: Press 'D' to Clear ---
   useEffect(() => {
@@ -22,7 +47,8 @@ export default function Home() {
         }
 
         // If not typing, perform the clear action
-        setUrl("");
+        if (mode === "url") setUrlInput("");
+        else setTextInput("");
         setResult(null);
       }
     }
@@ -92,7 +118,7 @@ export default function Home() {
     e.preventDefault();
     const pastedData = e.clipboardData.getData("text");
     const cleaned = getCleanedUrl(pastedData);
-    setUrl(cleaned || pastedData);
+    setUrlInput(cleaned || pastedData);
     if (cleaned !== pastedData) {
       setIsFixed(true);
       setTimeout(() => setIsFixed(false), 500);
@@ -101,17 +127,18 @@ export default function Home() {
 
   // --- UPDATED: Handle Paste Button Click ---
   const handlePasteClick = async (onlyIfEmpty = false) => {
-    // If we only want to paste into an empty box, stop if URL exists
-    if (onlyIfEmpty && url) return;
+    // If we only want to paste into an empty box, stop if URL/Text exists
+    const currentVal = mode === "url" ? urlInput : textInput;
+    if (onlyIfEmpty && currentVal) return;
 
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
         if (mode === "url") {
           const cleaned = getCleanedUrl(text);
-          setUrl(cleaned || text);
+          setUrlInput(cleaned || text);
         } else {
-          setUrl(text);
+          setTextInput(text);
         }
         setIsFixed(true);
         setTimeout(() => setIsFixed(false), 500);
@@ -123,11 +150,13 @@ export default function Home() {
   };
 
   function handleBlur() {
-    const cleaned = getCleanedUrl(url);
-    if (cleaned && cleaned !== url) {
-      setUrl(cleaned);
-      setIsFixed(true);
-      setTimeout(() => setIsFixed(false), 500);
+    if (mode === "url") {
+      const cleaned = getCleanedUrl(urlInput);
+      if (cleaned && cleaned !== urlInput) {
+        setUrlInput(cleaned);
+        setIsFixed(true);
+        setTimeout(() => setIsFixed(false), 500);
+      }
     }
   }
 
@@ -138,11 +167,11 @@ export default function Home() {
     let targetText = "";
 
     if (mode === "url") {
-      const cleanedUrl = getCleanedUrl(url);
-      if (cleanedUrl && cleanedUrl !== url) {
-        setUrl(cleanedUrl);
+      const cleanedUrl = getCleanedUrl(urlInput);
+      if (cleanedUrl && cleanedUrl !== urlInput) {
+        setUrlInput(cleanedUrl);
       }
-      targetUrl = (cleanedUrl || url).split('\n')[0].trim();
+      targetUrl = (cleanedUrl || urlInput).split('\n')[0].trim();
 
       if (!targetUrl) {
         alert("Please enter a valid URL");
@@ -150,7 +179,7 @@ export default function Home() {
       }
     } else {
       // Text mode
-      targetText = url.trim();
+      targetText = textInput.trim();
       if (!targetText) {
         alert("Please enter some text to summarize");
         return;
@@ -196,7 +225,7 @@ export default function Home() {
         <div style={{ display: "flex", background: "#f0f0f0", padding: 4, borderRadius: 8 }}>
           <button
             type="button"
-            onClick={() => { setMode("url"); setUrl(""); setResult(null); }}
+            onClick={() => { setMode("url"); setResult(null); }}
             style={{
               padding: "6px 12px",
               border: "none",
@@ -213,7 +242,7 @@ export default function Home() {
           </button>
           <button
             type="button"
-            onClick={() => { setMode("text"); setUrl(""); setResult(null); }}
+            onClick={() => { setMode("text"); setResult(null); }}
             style={{
               padding: "6px 12px",
               border: "none",
@@ -238,8 +267,8 @@ export default function Home() {
           <textarea
             id="urlInput"
             placeholder={mode === "url" ? "Paste URL here..." : "Paste lengthy content here to summarize..."}
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            value={mode === "url" ? urlInput : textInput}
+            onChange={(e) => mode === "url" ? setUrlInput(e.target.value) : setTextInput(e.target.value)}
             onPaste={handlePaste}
             onClick={() => handlePasteClick(true)} // Paste only if empty
             onBlur={mode === "url" ? handleBlur : undefined} // Only clean URL in URL mode
@@ -305,7 +334,11 @@ export default function Home() {
 
           <button
             type="button"
-            onClick={() => { setUrl(""); setResult(null); }}
+            onClick={() => {
+              if (mode === "url") setUrlInput("");
+              else setTextInput("");
+              setResult(null);
+            }}
             title="Clear input (Press 'D')"
             style={{
               padding: "0 15px",
