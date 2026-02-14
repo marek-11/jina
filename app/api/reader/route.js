@@ -289,8 +289,7 @@ export async function POST(request) {
         }
 
         // 5. Format Output
-        const sourceLabel = url ? `**URL:** [${url}](${url})` : `**Source:** User Input Text`;
-        const finalOutput = `${sourceLabel}\n\n${aiSummary}`;
+        const finalOutput = url ? `**URL:** [${url}](${url})\n\n${aiSummary}` : aiSummary;
 
         return NextResponse.json({
             summary: finalOutput,

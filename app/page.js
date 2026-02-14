@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react"; 
+import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 
 export default function Home() {
@@ -23,7 +23,7 @@ export default function Home() {
 
         // If not typing, perform the clear action
         setUrl("");
-        setResult(null); 
+        setResult(null);
       }
     }
 
@@ -48,22 +48,22 @@ export default function Home() {
       trimmed = trimmed.replace(/^URL:\s*/i, '');
 
       if (/^https?:\/\//i.test(trimmed)) {
-         trimmed = trimmed.replace(/\s+/g, '');
+        trimmed = trimmed.replace(/\s+/g, '');
       }
 
       const firstChar = trimmed.charAt(0);
       const isFragmentStart = ['/', '?', '&', '=', '#', '_', '%'].includes(firstChar);
-      
+
       if (isFragmentStart) {
-         trimmed = trimmed.replace(/\s+/g, '');
+        trimmed = trimmed.replace(/\s+/g, '');
       }
 
-      const isFragment = isFragmentStart || 
-                         trimmed.toLowerCase().startsWith('utm') ||
-                         trimmed.toLowerCase().startsWith('gad') ||
-                         trimmed.toLowerCase().startsWith('gclid') ||
-                         trimmed.toLowerCase().startsWith('wbraid') ||
-                         trimmed.includes('=');
+      const isFragment = isFragmentStart ||
+        trimmed.toLowerCase().startsWith('utm') ||
+        trimmed.toLowerCase().startsWith('gad') ||
+        trimmed.toLowerCase().startsWith('gclid') ||
+        trimmed.toLowerCase().startsWith('wbraid') ||
+        trimmed.includes('=');
 
       const hasSpaces = /\s/.test(trimmed);
       const hasDot = trimmed.includes('.');
@@ -90,7 +90,7 @@ export default function Home() {
     e.preventDefault();
     const pastedData = e.clipboardData.getData("text");
     const cleaned = getCleanedUrl(pastedData);
-    setUrl(cleaned || pastedData); 
+    setUrl(cleaned || pastedData);
     if (cleaned !== pastedData) {
       setIsFixed(true);
       setTimeout(() => setIsFixed(false), 500);
@@ -132,23 +132,23 @@ export default function Home() {
     let targetText = "";
 
     if (mode === "url") {
-        const cleanedUrl = getCleanedUrl(url);
-        if (cleanedUrl && cleanedUrl !== url) {
-            setUrl(cleanedUrl);
-        }
-        targetUrl = (cleanedUrl || url).split('\n')[0].trim();
+      const cleanedUrl = getCleanedUrl(url);
+      if (cleanedUrl && cleanedUrl !== url) {
+        setUrl(cleanedUrl);
+      }
+      targetUrl = (cleanedUrl || url).split('\n')[0].trim();
 
-        if (!targetUrl) {
-            alert("Please enter a valid URL");
-            return;
-        }
+      if (!targetUrl) {
+        alert("Please enter a valid URL");
+        return;
+      }
     } else {
-        // Text mode
-        targetText = url.trim();
-        if (!targetText) {
-            alert("Please enter some text to summarize");
-            return;
-        }
+      // Text mode
+      targetText = url.trim();
+      if (!targetText) {
+        alert("Please enter some text to summarize");
+        return;
+      }
     }
 
     setLoading(true);
@@ -156,21 +156,21 @@ export default function Home() {
     setCopied(false);
 
     try {
-        const payload = mode === "url" ? { url: targetUrl } : { text: targetText };
-        
-        const res = await fetch("/api/reader", {
-            method: "POST",
-            body: JSON.stringify(payload),
-            headers: { "Content-Type": "application/json" }
-        });
+      const payload = mode === "url" ? { url: targetUrl } : { text: targetText };
 
-        const data = await res.json();
-        setResult(data);
+      const res = await fetch("/api/reader", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" }
+      });
+
+      const data = await res.json();
+      setResult(data);
     } catch (err) {
-        console.error(err);
-        alert("An error occurred.");
+      console.error(err);
+      alert("An error occurred.");
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   }
 
@@ -185,7 +185,7 @@ export default function Home() {
     <main style={{ maxWidth: 700, margin: "40px auto", fontFamily: "sans-serif" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <h1 style={{ margin: 0 }}>WebCrawler</h1>
-        
+
         {/* MODE TOGGLE */}
         <div style={{ display: "flex", background: "#f0f0f0", padding: 4, borderRadius: 8 }}>
           <button
@@ -226,7 +226,7 @@ export default function Home() {
       </div>
 
       <form onSubmit={handleSubmit} style={{ marginBottom: "20px" }}>
-        
+
         {/* WRAPPER DIV for Relative Positioning */}
         <div style={{ position: "relative", width: "100%", marginBottom: 10 }}>
           <textarea
@@ -253,7 +253,7 @@ export default function Home() {
               display: "block" // Removes inline-block gaps
             }}
           />
-          
+
           {/* PASTE BUTTON ICON */}
           <button
             type="button"
@@ -280,42 +280,42 @@ export default function Home() {
           </button>
         </div>
 
-        <div style={{display:'flex', gap: '10px'}}>
-            <button
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
             type="submit"
             style={{
-                flex: 1,
-                padding: 12,
-                cursor: "pointer",
-                background: "#222",
-                color: "#fff",
-                border: "none",
-                borderRadius: 4,
-                fontSize: 16
+              flex: 1,
+              padding: 12,
+              cursor: "pointer",
+              background: "#222",
+              color: "#fff",
+              border: "none",
+              borderRadius: 4,
+              fontSize: 16
             }}
-            >
+          >
             {loading ? "Processing..." : (mode === "url" ? "Read & Summarize" : "Summarize Content")}
-            </button>
-            
-            <button
-                type="button"
-                onClick={() => { setUrl(""); setResult(null); }}
-                title="Clear input (Press 'D')"
-                style={{
-                    padding: "0 15px",
-                    cursor: "pointer",
-                    background: "#ff4d4f",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 4,
-                    fontSize: 16
-                }}
-            >
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setUrl(""); setResult(null); }}
+            title="Clear input (Press 'D')"
+            style={{
+              padding: "0 15px",
+              cursor: "pointer",
+              background: "#ff4d4f",
+              color: "#fff",
+              border: "none",
+              borderRadius: 4,
+              fontSize: 16
+            }}
+          >
             ✕
-            </button>
+          </button>
         </div>
-        <p style={{fontSize: '0.8rem', color: '#666', marginTop: '5px'}}>
-            Tip: Press <strong>'D'</strong> to clear (when not typing).
+        <p style={{ fontSize: '0.8rem', color: '#666', marginTop: '5px' }}>
+          Tip: Press <strong>'D'</strong> to clear (when not typing).
         </p>
       </form>
 
@@ -352,32 +352,36 @@ export default function Home() {
               color: "#333"
             }}
           >
-            <ReactMarkdown 
+            <ReactMarkdown
               components={{
-                h1: ({node, ...props}) => <h3 style={{marginTop: 0}} {...props} />,
-                h2: ({node, ...props}) => <h4 style={{marginTop: 10}} {...props} />,
-                li: ({node, ...props}) => <li style={{marginBottom: 4}} {...props} />,
-                a: ({node, ...props}) => <a style={{color: "#0066cc", textDecoration: "underline"}} target="_blank" rel="noopener noreferrer" {...props} />
+                h1: ({ node, ...props }) => <h3 style={{ marginTop: 0 }} {...props} />,
+                h2: ({ node, ...props }) => <h4 style={{ marginTop: 10 }} {...props} />,
+                li: ({ node, ...props }) => <li style={{ marginBottom: 4 }} {...props} />,
+                a: ({ node, ...props }) => <a style={{ color: "#0066cc", textDecoration: "underline" }} target="_blank" rel="noopener noreferrer" {...props} />
               }}
             >
               {result.summary}
             </ReactMarkdown>
           </div>
 
-          <h2 style={{ marginTop: 30 }}>Extracted Content</h2>
-          <pre
-            style={{
-              whiteSpace: "pre-wrap",
-              background: "#f3f3f3",
-              padding: 20,
-              borderRadius: 8,
-              lineHeight: 1.5,
-              border: "1px solid #e2e2e2",
-              overflowX: "auto"
-            }}
-          >
-            {result.content}
-          </pre>
+          {mode === 'url' && (
+            <>
+              <h2 style={{ marginTop: 30 }}>Extracted Content</h2>
+              <pre
+                style={{
+                  whiteSpace: "pre-wrap",
+                  background: "#f3f3f3",
+                  padding: 20,
+                  borderRadius: 8,
+                  lineHeight: 1.5,
+                  border: "1px solid #e2e2e2",
+                  overflowX: "auto"
+                }}
+              >
+                {result.content}
+              </pre>
+            </>
+          )}
         </div>
       )}
     </main>
