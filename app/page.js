@@ -87,6 +87,8 @@ export default function Home() {
   }
 
   const handlePaste = (e) => {
+    if (mode === "text") return; // Allow natural paste for text mode
+
     e.preventDefault();
     const pastedData = e.clipboardData.getData("text");
     const cleaned = getCleanedUrl(pastedData);
@@ -105,8 +107,12 @@ export default function Home() {
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
-        const cleaned = getCleanedUrl(text);
-        setUrl(cleaned || text);
+        if (mode === "url") {
+          const cleaned = getCleanedUrl(text);
+          setUrl(cleaned || text);
+        } else {
+          setUrl(text);
+        }
         setIsFixed(true);
         setTimeout(() => setIsFixed(false), 500);
       }
