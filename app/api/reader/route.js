@@ -242,6 +242,7 @@ export async function POST(request) {
 
         // UPDATED: Use the env var or fallback to the previous default
         const summaryBaseUrl = process.env.SUMMARY_BASE_URL || "https://api.openai.com/v1/chat/completions";
+        const modelName = process.env.MODEL_NAME || "deepseek-v3.2-reasoner";
 
         // UPDATED: Iterate over apiKeys
         for (const key of apiKeys) {
@@ -253,7 +254,7 @@ export async function POST(request) {
                         "Content-Type": "application/json"
                     },
                     body: JSON.stringify({
-                        model: "deepseek-v3.2-reasoner",
+                        model: modelName,
                         messages: [
                             {
                                 role: "system",
